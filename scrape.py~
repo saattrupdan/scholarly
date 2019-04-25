@@ -1,0 +1,3 @@
+import arxiv_scraper as arx
+
+arx.scrape(max_results_per_cat=10000)
