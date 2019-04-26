@@ -1,2 +1,6 @@
 *.csv
 *.pickle
+elmo/*
+*~
+__pycache__/*
+.ipynb*
