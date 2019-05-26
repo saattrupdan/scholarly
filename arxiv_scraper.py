@@ -7,7 +7,8 @@ import numpy as np
 from time import sleep
 
 def fetch(category="", max_results=5, start=0):
-    """ Fetch papers from the arXiv.
+    """
+    Fetch papers from the arXiv.
 
     INPUT
         category="":    str, arXiv category
@@ -15,7 +16,8 @@ def fetch(category="", max_results=5, start=0):
         start=0:        int, from which paper the scraping begins
 
     OUTPUT
-        pandas DataFrame object with ids, titles, authors, abstracts, categories, pdf links, updated date and published date."""
+        pandas DataFrame object with ids, titles, authors, abstracts, categories, pdf links, updated date and published date.
+    """
 
     # the url needs a colon if only if the category string is non-empty
     if category:
@@ -89,7 +91,8 @@ def fetch(category="", max_results=5, start=0):
 
 
 def batch_fetch(category="", max_results=5, file_path="paper_data", start=0, batch_size=1000):
-    """Fetch papers from the arXiv in batches and store them in a .csv file.
+    """
+    Fetch papers from the arXiv in batches and store them in a .csv file.
     
     INPUT
         category="":                str, arXiv category
@@ -99,7 +102,8 @@ def batch_fetch(category="", max_results=5, file_path="paper_data", start=0, bat
         batch_size=1000:            int, how many papers are loaded at a time (arXiv limits this to 30,000)
 
     OUTPUT
-        nothing """
+        nothing
+    """
     
     # remove file extension in file_path if it was included
     if file_path[-4:] == ".csv":
