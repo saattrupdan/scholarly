@@ -1,4 +1,4 @@
-from sys import argv
+import sys
 import pandas as pd
 import numpy as np
 import pickle # enables saving data and models locally
@@ -25,11 +25,9 @@ def elmo_vectors(x, sess, current_batch=0, num_batches=0):
                 f"completed.", end = "\r")
 
     # return average of ELMo features
-    #return sess.run(embeddings)
     return sess.run(tf.reduce_mean(embeddings, 1))
 
-
-file_name = f'{argv[1]}'
+file_name = argv[1]
 
 # set up dataframe with cleaned text
 with open(f"{file_name}_lemmatised.pickle", "rb") as pickle_in:
