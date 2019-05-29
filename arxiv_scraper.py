@@ -174,5 +174,3 @@ def cat_scrape(max_results_per_cat=10000, file_path="arxiv_data", batch_size=100
         os.remove(f"{file_path}_{cat}.csv")
 
     print(f"Scraped {max_results_per_cat * len(cats)} papers and loaded them into {file_path}.csv.")
-
-cat_scrape()
