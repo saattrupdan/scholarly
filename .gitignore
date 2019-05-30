@@ -5,3 +5,4 @@ elmo/*
 __pycache__/*
 .ipynb_checkpoints/*
 *.swp
+data/*
