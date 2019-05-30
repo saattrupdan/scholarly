@@ -9,6 +9,25 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # ignore tensorflow warnings
 import tensorflow_hub as hub
 import tensorflow as tf
 
+def download_elmo_model():
+    if not os.path.isdir("elmo"):
+        # download ELMo model
+        print("Downloading compressed ELMo model...", end = " ")
+        url = "https://tfhub.dev/google/elmo/2?tf-hub-format=compressed"
+        wget.download(url, out="elmo.tar.gz")
+        print("Done!")
+
+        # uncompress ELMo model
+        print("Uncompressing into the 'elmo' directory...", end = " ")
+        os.system("mkdir elmo") # create directory
+        with tarfile.open("elmo.tar.gz") as tar:
+            tar.extractall("elmo")
+        os.remove("elmo.tar.gz")
+        print("Done!")
+    else:
+        print("The 'elmo' directory already exists, so assuming that " \
+            "the model has been downloaded.")
+
 def elmo_vectors(arr, sess, model, current_batch = 0, num_batches = 0, data_rows = 0):
     # initialise ELMo model
     embeddings = model(arr, signature="default", as_dict=True)["elmo"]
