@@ -21,9 +21,10 @@ def str_to_arr(texts):
     ''' Converts a string to a numpy array. '''
     return np.asarray(re.sub('[\' \[\]]', '', texts).split(','))
 
-def clean_cats(texts):
+def clean_cats(texts, path = "data"):
     ''' Composition of nan_if_empty, remove_non_cats and str_to_arr. '''
-    cats_df = pd.read_csv("data/cats.csv")
+    full_path = os.path.join(path, "cats.csv")
+    cats_df = pd.read_csv(full_path)
     cats = np.asarray(cats_df['category'].values)
     arr = str_to_arr(texts)
     cat_arr = remove_non_cats(arr, cats)
@@ -41,26 +42,31 @@ def lemmatise(texts):
 
     return pd.Series([' '.join(np.asarray([token.lemma_ for token in nlp(text)])) for text in texts])
 
-def setup():
+def setup(path = "data"):
     # create data directory
-    if not os.path.isdir("data"):
-        os.system("mkdir data")
-        print("Created data directory")
+    if not os.path.isdir(path):
+        os.system(f"mkdir {path}")
+        print("Created {path} directory")
 
     # download a list of all the arXiv categories
     url_start = f"https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data/"
-    if not os.path.isfile('data/cats.csv'):
-        wget.download(url_start + "cats.csv", out = "data/cats.csv")
+    full_path = os.path.join(path, "cats.csv")
+    if not os.path.isfile(full_path):
+        wget.download(url_start + "cats.csv", out = full_path)
     else:
         print("it's already downloaded!")
 
 def download_papers(file_name):
     url_start = f"https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data/"
-    if not os.path.isfile(f'data/{file_name}.csv'):
-        wget.download(url_start + f"{file_name}.csv", out = f"data/{file_name}.csv")
+    full_path = os.path.join(path, f'{file_name}.csv')
+    if not os.path.isfile(full_path):
+        wget.download(url_start + f"{file_name}.csv", out = full_path)
 
-def get_clean_text(file_name):
-    df = pd.read_csv(f'data/{file_name}.csv', converters={'category': clean_cats})[['title', 'abstract', 'category']]
+def get_clean_text(file_name, path = "data"):
+    full_path = os.path.join(path, f"{file_name}.csv")
+    clean_cats_with_path = lambda x: clean_cats(x, path = path)
+    df = pd.read_csv(full_path, converters = {'category': clean_cats_with_path})
+    df = df[['title', 'abstract', 'category']]
 
     # drop rows with NaNs
     df.dropna(inplace=True)
@@ -85,7 +91,7 @@ def get_clean_text(file_name):
     print(f"Done!")
     return df['clean_text']
 
-def lemmatise_file(series, file_name, batch_size = 100):
+def lemmatise_file(series, file_name, batch_size = 100, path = "data"):
     data_rows = len(series)
     batches = np.asarray([series[i:i+batch_size] for i in 
                 np.arange(0, data_rows, batch_size)])
@@ -98,47 +104,56 @@ def lemmatise_file(series, file_name, batch_size = 100):
         status_perc = round(i / num_batches * 100, 2)
         print(f"{status_text} {status_perc}% completed.", end = "\r")
         
-        if not os.path.isfile(f'data/{file_name}_clean_{i}.csv'):
+        full_path = os.path.join(path, f'{file_name}_clean_{i}.csv')
+        if not os.path.isfile(full_path):
             batch_series = lemmatise(batch)
-            batch_series.to_csv(f"data/{file_name}_clean_{i}.csv", header = False)
+            batch_series.to_csv(full_path, header = False)
 
     print(f"{status_text} 100.0% completed.")
     print(f"Saving clean series...", end = " ")
     
     lst = [] 
     for i in range(num_batches):
-        series = pd.read_csv(f"data/{file_name}_clean_{i}.csv")
+        full_path = os.path.join(path, f'{file_name}_clean_{i}.csv')
+        series = pd.read_csv(full_path)
         lst.append(series.values)
     
     arr_lemm = np.concatenate(lst)[:, 1]
     series_lemm = pd.Series(arr_lemm)
     
-    series_lemm.to_csv(f"data/{file_name}_clean.csv", header = False)
+    full_path = os.path.join(path, f'{file_name}_clean.csv')
+    series_lemm.to_csv(full_path, header = False)
 
     for i in range(num_batches):
-        os.remove(f"data/{file_name}_clean_{i}.csv")
+        full_path = os.path.join(path, f'{file_name}_clean_{i}.csv')
+        os.remove(full_path)
 
     print(f"Done!")
-    print(f"Saved to data/{file_name}_clean.csv")
+    full_path = os.path.join(path, f'{file_name}_clean.csv')
+    print(f"Saved to {full_path}.")
 
     return series_lemm
         
 
-def clean(file_name, lemm_batch_size = 100):
-    if os.path.isfile(f'data/{file_name}_clean.csv'):
+def clean(file_name, lemm_batch_size = 100, path = "data"):
+    full_path = os.path.join(path, f"{file_name}_clean.csv")
+    if os.path.isfile(full_path):
         print("File already cleaned! Loading in clean text...", end = " ")
-        series_lemm = pd.read_csv(f"data/{file_name}_clean.csv")
+        series_lemm = pd.read_csv(full_path)
         print("Done!")
     else:
         download_papers(file_name)
         
-        print(f"Loading in data from data/{file_name}.csv...", end = " ")
-        series_clean = get_clean_text(file_name)
+        full_path = os.path.join(path, f"{file_name}.csv")
+        print(f"Loading in data from {full_path}...", end = " ")
+        series_clean = get_clean_text(file_name, path = path)
         print("Done!")
 
         series_lemm = lemmatise_file(
             series_clean, 
             file_name = file_name, 
-            batch_size = lemm_batch_size)
+            batch_size = lemm_batch_size
+            path = path
+        )
 
     return np.asarray(series_lemm)
