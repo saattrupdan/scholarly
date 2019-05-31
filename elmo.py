@@ -69,5 +69,7 @@ def extract(arr, batch_size = 50):
                 data_rows = data_rows
             )
             for current_batch, batch in enumerate(batches)])
-
-    return np.concatenate(elmo_batches, axis = 0)
+    
+    output = np.concatenate(elmo_batches, axis = 0)
+    print(f"{status_text} 100.0% completed.")
+    return output
