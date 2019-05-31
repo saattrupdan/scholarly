@@ -126,7 +126,9 @@ def lemmatise_file(series, file_name, batch_size = 100):
 
 def clean(file_name, lemm_batch_size = 100):
     if os.path.isfile(f'data/{file_name}_clean.csv'):
+        print("File already cleaned! Loading in clean text...", end = " ")
         series_lemm = pd.read_csv(f"data/{file_name}_clean.csv")
+        print("Done!")
     else:
         download_papers(file_name)
         
@@ -139,4 +141,4 @@ def clean(file_name, lemm_batch_size = 100):
             file_name = file_name, 
             batch_size = lemm_batch_size)
 
-    return series_lemm
+    return np.asarray(series_lemm)
