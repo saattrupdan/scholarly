@@ -24,9 +24,6 @@ def download_elmo_model():
             tar.extractall("elmo")
         os.remove("elmo.tar.gz")
         print("Done!")
-    else:
-        print("The 'elmo' directory already exists, so assuming that " \
-            "the model has been downloaded.")
 
 def elmo_vectors(arr, sess, model, current_batch = 0, num_batches = 0, data_rows = 0):
     # initialise ELMo model
@@ -52,8 +49,8 @@ def extract(arr, batch_size = 50):
     print(status_text + " 0.0% completed.", end = "\r")
 
     # set up batches
-    batches = np.asarray([arr[i:i+batch_size] for i in 
-                np.arange(0, data_rows, batch_size)])
+    batch_range = np.arange(0, data_rows, batch_size)
+    batches = np.asarray([arr[i:i+batch_size] for i in batch_range])
     num_batches = len(batches)
 
     # build ELMo data
