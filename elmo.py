@@ -50,9 +50,11 @@ def extract(arr, batch_size = 50):
 
     # set up batches
     batch_range = np.arange(0, data_rows, batch_size)
-    batches = np.asarray([arr[i:i+batch_size] for i in batch_range])
-    num_batches = len(batches)
-
+    batches = [arr[i:i+batch_size][:, 1] for i in batch_range]
+    num_batches = data_rows // batch_size
+    if data_rows % batch_size:
+        num_batches += 1
+    
     # build ELMo data
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
