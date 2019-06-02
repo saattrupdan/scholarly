@@ -46,7 +46,7 @@ def setup(path = "data"):
     # create data directory
     if not os.path.isdir(path):
         os.system(f"mkdir {path}")
-        print("Created {path} directory")
+        print(f"Created {path} directory")
 
     # download a list of all the arXiv categories
     url_start = f"https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data/"
@@ -152,7 +152,7 @@ def clean(file_name, lemm_batch_size = 100, path = "data"):
         series_lemm = lemmatise_file(
             series_clean, 
             file_name = file_name, 
-            batch_size = lemm_batch_size
+            batch_size = lemm_batch_size,
             path = path
         )
 
