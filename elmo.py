@@ -38,7 +38,7 @@ def elmo_vectors(arr, sess, model, current_batch = 0, num_batches = 0, data_rows
     # return average of ELMo features
     return sess.run(tf.reduce_mean(embeddings, 1))
 
-def extract(arr, batch_size = 50):
+def extract(arr, file_name, path = "data", batch_size = 50):
     # load the ELMo model
     model = hub.Module("elmo", trainable = True)
 
@@ -50,7 +50,7 @@ def extract(arr, batch_size = 50):
 
     # set up batches
     batch_range = np.arange(0, data_rows, batch_size)
-    batches = [arr[i:i+batch_size][:, 1] for i in batch_range]
+    batches = iter([arr[i:i+batch_size][:, 1] for i in batch_range])
     num_batches = data_rows // batch_size
     if data_rows % batch_size:
         num_batches += 1
@@ -59,17 +59,27 @@ def extract(arr, batch_size = 50):
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         sess.run(tf.tables_initializer())
-        elmo_batches = np.asarray([
-            elmo_vectors(
-                arr = batch, 
-                sess = sess, 
-                model = model, 
-                current_batch = current_batch, 
-                num_batches = num_batches,
-                data_rows = data_rows
-            )
-            for current_batch, batch in enumerate(batches)])
+        for current_batch, batch in enumerate(batches):
+            full_path = os.path.join(path, f"{file_name}_elmo_{current_batch}.pickle")
+            if not os.path.isfile(full_path):
+                elmo_data = elmo_vectors(
+                    arr = batch, 
+                    sess = sess, 
+                    model = model, 
+                    current_batch = current_batch, 
+                    num_batches = num_batches,
+                    data_rows = data_rows
+                )
+                
+                with open(full_path, "wb") as pickle_out:
+                    pickle.dump(elmo_data, pickle_out)
+
+    elmo_batches = np.asarray([])
+    for i in iter(range(num_batches)):
+        full_path = os.path.join(path, f"{file_name}_elmo_{i}.pickle")
+        os.remove(full_path)
     
     output = np.concatenate(elmo_batches, axis = 0)
     print(f"{status_text} 100.0% completed.")
+        
     return output
