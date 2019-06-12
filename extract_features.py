@@ -22,9 +22,12 @@ for file_name in file_names:
     print("--------------------------")
     output_path = os.path.join(data_path, f"{file_name}_elmo.pickle")
     if not os.path.isfile(output_path):
-        series_clean = cleaner.clean(file_name, lemm_batch_size = 100, path = data_path)
-        elmo_data = elmo.extract(series_clean, batch_size = 10, file_name = file_name, path = data_path)
-        with open(output_path, "wb") as pickle_out:
-            pickle.dump(elmo_data, pickle_out)
+        clean_text = cleaner.clean(file_name, lemm_batch_size = 100, path = data_path)
+        elmo_data = elmo.extract(
+            clean_text, 
+            batch_size = 10, 
+            file_name = file_name, 
+            path = data_path
+        )
     else:
         print(f"Already ELMo'd that one. Moving on...")
