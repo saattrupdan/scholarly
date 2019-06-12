@@ -50,7 +50,7 @@ def extract(arr, file_name, path = "data", batch_size = 50):
 
     # set up batches
     batch_range = np.arange(0, data_rows, batch_size)
-    batches = iter([arr[i:i+batch_size][:, 1] for i in batch_range])
+    batches = iter([arr[i:i+batch_size] for i in batch_range])
     num_batches = data_rows // batch_size
     if data_rows % batch_size:
         num_batches += 1
@@ -74,12 +74,23 @@ def extract(arr, file_name, path = "data", batch_size = 50):
                 with open(full_path, "wb") as pickle_out:
                     pickle.dump(elmo_data, pickle_out)
 
-    elmo_batches = np.asarray([])
+    elmo_batches = np.ones((1,1024))
+    for i in iter(range(num_batches)):
+        full_path = os.path.join(path, f"{file_name}_elmo_{i}.pickle")
+        with open(full_path, "rb") as pickle_in:
+            batch = np.asanyarray(pickle.load(pickle_in))
+        elmo_batches = np.vstack((elmo_batches, batch))
+    
+    output = elmo_batches[1:, :]
+
+    full_path = os.path.join(path, f"{file_name}_elmo.pickle")
+    with open(full_path, "wb") as pickle_out:
+        pickle.dump(output, pickle_out)
+
     for i in iter(range(num_batches)):
         full_path = os.path.join(path, f"{file_name}_elmo_{i}.pickle")
         os.remove(full_path)
     
-    output = np.concatenate(elmo_batches, axis = 0)
     print(f"{status_text} 100.0% completed.")
         
     return output

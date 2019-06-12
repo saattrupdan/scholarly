@@ -107,7 +107,7 @@ def lemmatise_file(series, file_name, batch_size = 100, path = "data"):
         full_path = os.path.join(path, f'{file_name}_clean_{i}.csv')
         if not os.path.isfile(full_path):
             batch_series = lemmatise(batch)
-            batch_series.to_csv(full_path, header = False)
+            batch_series.to_csv(full_path, header = False, index = False)
 
     print(f"{status_text} 100.0% completed.")
     print(f"Saving clean series...", end = " ")
@@ -122,7 +122,7 @@ def lemmatise_file(series, file_name, batch_size = 100, path = "data"):
     series_lemm = pd.Series(arr_lemm)
     
     full_path = os.path.join(path, f'{file_name}_clean.csv')
-    series_lemm.to_csv(full_path, header = False)
+    series_lemm.to_csv(full_path, header = False, index = False)
 
     for i in range(num_batches):
         full_path = os.path.join(path, f'{file_name}_clean_{i}.csv')
@@ -132,14 +132,14 @@ def lemmatise_file(series, file_name, batch_size = 100, path = "data"):
     full_path = os.path.join(path, f'{file_name}_clean.csv')
     print(f"Saved to {full_path}.")
 
-    return series_lemm
+    return np.asarray(series_lemm)
         
 
 def clean(file_name, lemm_batch_size = 100, path = "data"):
     full_path = os.path.join(path, f"{file_name}_clean.csv")
     if os.path.isfile(full_path):
         print("File already cleaned! Loading in clean text...", end = " ")
-        series_lemm = pd.read_csv(full_path)
+        arr_lemm = np.asarray(pd.read_csv(full_path).values)[:, 1]
         print("Done!")
     else:
         download_papers(file_name)
@@ -149,11 +149,11 @@ def clean(file_name, lemm_batch_size = 100, path = "data"):
         series_clean = get_clean_text(file_name, path = path)
         print("Done!")
 
-        series_lemm = lemmatise_file(
+        arr_lemm = lemmatise_file(
             series_clean, 
             file_name = file_name, 
             batch_size = lemm_batch_size,
             path = path
         )
 
-    return np.asarray(series_lemm)
+    return arr_lemm
