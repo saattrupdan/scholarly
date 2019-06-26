@@ -11,8 +11,8 @@ else:
     file_names = [f'arxiv_sample_{i}' for i in
         [1000, 5000, 10000, 25000, 50000, 100000, 200000, 500000, 750000]]# + ['arxiv']
 
-#data_path = os.path.join("P:/", "Public Folder", "scholarly_data")
-data_path = os.path.join("/home", "leidem", "pCloudDrive", "Public Folder", "scholarly_data")
+data_path = os.path.join("P:/", "Public Folder", "scholarly_data")
+#data_path = os.path.join("/home", "leidem", "pCloudDrive", "Public Folder", "scholarly_data")
 cleaner.setup(path = data_path)
 elmo.download_elmo_model()
 
