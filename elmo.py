@@ -38,9 +38,13 @@ def elmo_vectors(arr, sess, model, current_batch = 0, num_batches = 0, data_rows
     # return average of ELMo features
     return sess.run(tf.reduce_mean(embeddings, 1))
 
-def extract(arr, file_name, path = "data", batch_size = 50):
+def extract(file_name, path = "data", batch_size = 50):
     # load the ELMo model
     model = hub.Module("elmo", trainable = True)
+
+    # load the data from cleaned file
+    full_path = os.path.join(path, f"{file_name}_clean.csv")
+    arr = np.asarray(pd.read_csv(full_path))
 
     # get the amount of rows in the array
     data_rows = len(arr)
@@ -51,6 +55,7 @@ def extract(arr, file_name, path = "data", batch_size = 50):
     # set up batches
     batch_range = np.arange(0, data_rows, batch_size)
     batches = iter([arr[i:i+batch_size] for i in batch_range])
+    arr = None
     num_batches = data_rows // batch_size
     if data_rows % batch_size:
         num_batches += 1
