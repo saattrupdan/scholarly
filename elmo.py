@@ -2,6 +2,7 @@ import sys
 import pandas as pd
 import numpy as np
 import pickle # enables saving data and models locally
+import itertools as it # handling iterators like count()
 
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # ignore tensorflow warnings
@@ -25,16 +26,10 @@ def download_elmo_model():
         os.remove("elmo.tar.gz")
         print("Done!")
 
-def elmo_vectors(arr, sess, model, current_batch = 0, num_batches = 0, data_rows = 0):
+def elmo_vectors(arr, sess, model):
     # initialise ELMo model
     embeddings = model(arr, signature="default", as_dict=True)["elmo"]
     
-    # display progress
-    if num_batches and current_batch and data_rows:
-        status_text = f"Extracting ELMo features from the {data_rows} rows... "
-        status_perc = round(current_batch / num_batches * 100, 2)
-        print(f"{status_text} {status_perc}% completed.", end = "\r")
-
     # return average of ELMo features
     return sess.run(tf.reduce_mean(embeddings, 1))
 
@@ -42,48 +37,46 @@ def extract(file_name, path = "data", batch_size = 50):
     # load the ELMo model
     model = hub.Module("elmo", trainable = True)
 
-    # load the data from cleaned file
-    full_path = os.path.join(path, f"{file_name}_clean.csv")
-    arr = np.asarray(pd.read_csv(full_path))
+    print("Extracting ELMo features...")
 
-    # get the amount of rows in the array
-    data_rows = len(arr)
-    
-    status_text = f"Extracting ELMo features from the {data_rows} rows... "
-    print(status_text + " 0.0% completed.", end = "\r")
-
-    # set up batches
-    batch_range = np.arange(0, data_rows, batch_size)
-    batches = iter([arr[i:i+batch_size] for i in batch_range])
-    arr = None
-    num_batches = data_rows // batch_size
-    if data_rows % batch_size:
-        num_batches += 1
-    
     # build ELMo data
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         sess.run(tf.tables_initializer())
-        for current_batch, batch in enumerate(batches):
-            full_path = os.path.join(path, f"{file_name}_elmo_{current_batch}.pickle")
+        for i in it.count():
+            full_path = os.path.join(path, f"{file_name}_elmo_{i}.pickle")
             if not os.path.isfile(full_path):
+                full_path = os.path.join(path, f"{file_name}_clean.csv")
+
+                try:
+                    batch = np.asarray(pd.read_csv(
+                        full_path,
+                        skiprows = i * batch_size,
+                        nrows = batch_size
+                        ))[:, 1]
+                except:
+                    break
+
                 elmo_data = elmo_vectors(
                     arr = batch, 
                     sess = sess, 
-                    model = model, 
-                    current_batch = current_batch, 
-                    num_batches = num_batches,
-                    data_rows = data_rows
+                    model = model
                 )
                 
+                full_path = os.path.join(path, f"{file_name}_elmo_{i}.pickle")
                 with open(full_path, "wb") as pickle_out:
                     pickle.dump(elmo_data, pickle_out)
+        
+            print(f"Processed {(i+1) * batch_size} papers...", end = "\r")
 
     elmo_batches = np.ones((1,1024))
-    for i in iter(range(num_batches)):
+    for i in it.count():
         full_path = os.path.join(path, f"{file_name}_elmo_{i}.pickle")
-        with open(full_path, "rb") as pickle_in:
-            batch = np.asanyarray(pickle.load(pickle_in))
+        try:
+            with open(full_path, "rb") as pickle_in:
+                batch = np.asanyarray(pickle.load(pickle_in))
+        except:
+            break
         elmo_batches = np.vstack((elmo_batches, batch))
     
     output = elmo_batches[1:, :]
@@ -92,10 +85,13 @@ def extract(file_name, path = "data", batch_size = 50):
     with open(full_path, "wb") as pickle_out:
         pickle.dump(output, pickle_out)
 
-    for i in iter(range(num_batches)):
+    for i in it.count():
         full_path = os.path.join(path, f"{file_name}_elmo_{i}.pickle")
-        os.remove(full_path)
-    
-    print(f"{status_text} 100.0% completed.")
+        try:
+            os.remove(full_path)
+        except:
+            break
+
+    print("All done!" + " " * 100)
         
     return output
