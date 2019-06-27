@@ -136,6 +136,7 @@ def lemmatise_file(series, file_name, batch_size = 100, path = "data"):
         
 
 def clean(file_name, lemm_batch_size = 100, path = "data"):
+    full_path = os.path.join(path, f"{file_name}_clean.csv")
     if os.path.isfile(full_path):
         print("File already cleaned.")
     else:
