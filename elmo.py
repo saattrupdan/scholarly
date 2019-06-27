@@ -38,37 +38,44 @@ def extract(file_name, path = "data", batch_size = 50):
     model = hub.Module("elmo", trainable = True)
 
     print("Extracting ELMo features...")
+    
+    # infinite loop
+    for i in it.count():
+        full_path = os.path.join(path, f"{file_name}_elmo_{i}.pickle")
+        if not os.path.isfile(full_path):
+            
+            # get the next batch and break loop if it does not exist 
+            full_path = os.path.join(path, f"{file_name}_clean.csv")
+            try:
+                batch = np.asarray(pd.read_csv(
+                    full_path,
+                    skiprows = i * batch_size,
+                    nrows = batch_size
+                    ))[:, 1]
+            except:
+                break
+            
+            # open tensorflow session
+            with tf.Session() as sess:
 
-    # build ELMo data
-    with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer())
-        sess.run(tf.tables_initializer())
-        for i in it.count():
-            full_path = os.path.join(path, f"{file_name}_elmo_{i}.pickle")
-            if not os.path.isfile(full_path):
-                full_path = os.path.join(path, f"{file_name}_clean.csv")
-
-                try:
-                    batch = np.asarray(pd.read_csv(
-                        full_path,
-                        skiprows = i * batch_size,
-                        nrows = batch_size
-                        ))[:, 1]
-                except:
-                    break
-
-                elmo_data = elmo_vectors(
-                    arr = batch, 
-                    sess = sess, 
-                    model = model
-                )
+                # initialise session
+                sess.run(tf.global_variables_initializer())
+                sess.run(tf.tables_initializer())
                 
+                # extract ELMo features
+                embeddings = model(batch, signature="default", as_dict=True)["elmo"]
+
+                # save the average ELMo features for every title+abstract
+                elmo_data = sess.run(tf.reduce_mean(embeddings, 1))
+            
+                # save ELMo features for the batch into a temporary pickle file
                 full_path = os.path.join(path, f"{file_name}_elmo_{i}.pickle")
                 with open(full_path, "wb") as pickle_out:
                     pickle.dump(elmo_data, pickle_out)
-        
-            print(f"Processed {(i+1) * batch_size} papers...", end = "\r")
-
+            
+        print(f"Processed {(i+1) * batch_size} papers...", end = "\r")
+    
+    # concatenate all batches into a single array 'elmo_batches'
     elmo_batches = np.ones((1,1024))
     for i in it.count():
         full_path = os.path.join(path, f"{file_name}_elmo_{i}.pickle")
@@ -78,13 +85,13 @@ def extract(file_name, path = "data", batch_size = 50):
         except:
             break
         elmo_batches = np.vstack((elmo_batches, batch))
-    
-    output = elmo_batches[1:, :]
 
+    # save into a pickle file
     full_path = os.path.join(path, f"{file_name}_elmo.pickle")
     with open(full_path, "wb") as pickle_out:
-        pickle.dump(output, pickle_out)
-
+        pickle.dump(elmo_batches[1:, :], pickle_out)
+    
+    # remove all the temporary batch pickle files
     for i in it.count():
         full_path = os.path.join(path, f"{file_name}_elmo_{i}.pickle")
         try:
