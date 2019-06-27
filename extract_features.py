@@ -23,7 +23,7 @@ for file_name in file_names:
     output_path = os.path.join(data_path, f"{file_name}_elmo.pickle")
     if not os.path.isfile(output_path):
         cleaner.clean(file_name, lemm_batch_size = 100, path = data_path)
-        elmo_data = elmo.extract(
+        elmo.extract(
             file_name = file_name,
             path = data_path,
             batch_size = 10
