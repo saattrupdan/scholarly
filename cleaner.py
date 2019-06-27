@@ -4,6 +4,8 @@ import numpy as np
 import re # regular expressions
 import spacy as sp # used for lemmatising text
 import wget # downloading files
+import itertools as it # handling iterators like count()
+import shutil # enables copying data without using memory with copyfileobj()
 
 def nan_if_empty(texts):
     ''' Converts empty iterable to NaNs, making it easier to detect by pandas. '''
@@ -15,34 +17,34 @@ def nan_if_empty(texts):
 
 def remove_non_cats(texts, cats):
     ''' Removes every string in input which does not occur in the list of arXiv categories. '''
+
     return np.intersect1d(np.asarray(texts), cats)
 
 def str_to_arr(texts):
     ''' Converts a string to a numpy array. '''
+
     return np.asarray(re.sub('[\' \[\]]', '', texts).split(','))
 
 def clean_cats(texts, path = "data"):
     ''' Composition of nan_if_empty, remove_non_cats and str_to_arr. '''
+
     full_path = os.path.join(path, "cats.csv")
-    cats_df = pd.read_csv(full_path)
-    cats = np.asarray(cats_df['category'].values)
+    cats = np.loadtxt(
+        fname = full_path,
+        delimiter = ",",
+        dtype = object,
+        usecols = 0,
+        skiprows = 1
+        )
+
     arr = str_to_arr(texts)
     cat_arr = remove_non_cats(arr, cats)
     return nan_if_empty(cat_arr)
 
-def lemmatise(texts):
-    ''' Lemmatise an iterable of strings. '''
-    
-    # import spacy's language model
-    try:
-        nlp = sp.load('en', disable=['parser', 'ner'])
-    except:
-        os.system("python -m spacy download en --user")
-        nlp = sp.load('en', disable=['parser', 'ner']) 
-
-    return pd.Series([' '.join(np.asarray([token.lemma_ for token in nlp(text)])) for text in texts])
 
 def setup(path = "data"):
+    ''' Create data path and download list of arXiv categories. '''
+
     # create data directory
     if not os.path.isdir(path):
         os.system(f"mkdir {path}")
@@ -56,13 +58,19 @@ def setup(path = "data"):
     else:
         print("it's already downloaded!")
 
-def download_papers(file_name):
+
+def download_papers(file_name, path = "data"):
+    ''' Download the raw paper data. '''
+
     url_start = f"https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data/"
     full_path = os.path.join(path, f'{file_name}.csv')
     if not os.path.isfile(full_path):
         wget.download(url_start + f"{file_name}.csv", out = full_path)
 
-def get_clean_text(file_name, path = "data"):
+
+def get_preclean_text(file_name, path = "data"):
+    ''' Get csv file, perform basic cleaning tasks and save it to csv. '''
+
     full_path = os.path.join(path, f"{file_name}.csv")
     clean_cats_with_path = lambda x: clean_cats(x, path = path)
     df = pd.read_csv(full_path, converters = {'category': clean_cats_with_path})
@@ -87,71 +95,76 @@ def get_clean_text(file_name, path = "data"):
 
     # remove whitespaces
     df['clean_text'] = df['clean_text'].apply(lambda x:' '.join(x.split()))
+
+    preclean_arr = np.asarray(df['clean_text'])
+    full_path = os.path.join(path, f"{file_name}_preclean.csv")
+    np.savetxt(full_path, preclean_arr, fmt = '%s')
     
-    print(f"Done!")
-    return df['clean_text']
 
-def lemmatise_file(series, file_name, batch_size = 100, path = "data"):
-    data_rows = len(series)
-    batches = np.asarray([series[i:i+batch_size] for i in 
-                np.arange(0, data_rows, batch_size)])
-    num_batches = data_rows // batch_size
-    if data_rows % batch_size:
-        num_batches += 1
+def lemmatise_file(file_name, batch_size = 100, path = "data"):
+    ''' Lemmatise file in batches, and save to csv. '''
 
-    status_text = f"Lemmatising {file_name}.csv..."
-    for i, batch in enumerate(batches):
-        status_perc = round(i / num_batches * 100, 2)
-        print(f"{status_text} {status_perc}% completed.", end = "\r")
-        
-        full_path = os.path.join(path, f'{file_name}_clean_{i}.csv')
+    nlp = sp.load('en', disable=['parser', 'ner'])
+    
+    for i in it.count():
+        full_path = os.path.join(path, f"{file_name}_clean_{i}.csv")
         if not os.path.isfile(full_path):
-            batch_series = lemmatise(batch)
-            batch_series.to_csv(full_path, header = False, index = False)
-
-    print(f"{status_text} 100.0% completed.")
-    print(f"Saving clean series...", end = " ")
-    
-    lst = [] 
-    for i in range(num_batches):
-        full_path = os.path.join(path, f'{file_name}_clean_{i}.csv')
-        series = pd.read_csv(full_path)
-        lst.append(series.values)
-    
-    arr_lemm = np.concatenate(lst)[:, 1]
-    series_lemm = pd.Series(arr_lemm)
-    
-    full_path = os.path.join(path, f'{file_name}_clean.csv')
-    series_lemm.to_csv(full_path, header = False, index = False)
-
-    for i in range(num_batches):
-        full_path = os.path.join(path, f'{file_name}_clean_{i}.csv')
-        os.remove(full_path)
-
-    print(f"Done!")
-    full_path = os.path.join(path, f'{file_name}_clean.csv')
-    print(f"Saved to {full_path}.")
-
-    return None
+            try:
+                full_path = os.path.join(path, f"{file_name}_preclean.csv")
+                batch = np.loadtxt(
+                    fname = full_path,
+                    delimiter = '\n',
+                    skiprows = i * batch_size,
+                    max_rows = batch_size,
+                    dtype = object
+                    )
+             
+                batch_arr = np.asarray(
+                    [' '.join(np.asarray([token.lemma_ for token in nlp(text)]))
+                    for text in batch]
+                    )
+                
+                full_path = os.path.join(path, f'{file_name}_clean_{i}.csv')
+                np.savetxt(full_path, batch_arr, delimiter = ',', fmt = '%s')
+            except:
+                break
         
+        print(f"Cleaned {(i+1) * batch_size} papers...", end = "\r")
+    
+    # concatenate all temporary csv files into a single csv file
+    # this uses the shutil.copyfileobj() function, which doesn't
+    # store the files in memory
+    full_path = os.path.join(path, f"{file_name}_clean.csv")
+    with open(full_path, 'wb+') as file_out:
+        for i in it.count():
+            try:
+                full_path = os.path.join(path, f"{file_name}_clean_{i}.csv")
+                with open(full_path, "rb") as file_in:
+                    shutil.copyfileobj(file_in, file_out)
+            except:
+                break
+    
+    # remove all the temporary batch files
+    for i in it.count():
+        try:
+            full_path = os.path.join(path, f"{file_name}_clean_{i}.csv")
+            os.remove(full_path)
+        except:
+            break
+
 
 def clean(file_name, lemm_batch_size = 100, path = "data"):
+    ''' Download and clean raw file. '''
+
     full_path = os.path.join(path, f"{file_name}_clean.csv")
     if os.path.isfile(full_path):
         print("File already cleaned.")
     else:
-        download_papers(file_name)
-        
-        full_path = os.path.join(path, f"{file_name}.csv")
-        print(f"Loading in data from {full_path}...", end = " ")
-        series_clean = get_clean_text(file_name, path = path)
-        print("Done!")
+        download_papers(file_name, path = path)
+        get_preclean_text(file_name, path = path)
 
         lemmatise_file(
-            series_clean, 
             file_name = file_name, 
             batch_size = lemm_batch_size,
             path = path
         )
-
-    return None
