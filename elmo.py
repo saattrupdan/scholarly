@@ -79,7 +79,7 @@ def extract(file_name, path = "data", batch_size = 10):
     # ask user if they want to merge batches    
     cont = None
     while cont not in {'y','n'}:
-        cont = input('Processed all batches. Merge them all and delete batches? (y/n)')
+        cont = input('Processed all batches. Merge them all and delete batches? (y/n) \n > ')
         if cont not in {'y','n'}:
             print("Please answer 'y' for yes or 'n' for no.")
     
