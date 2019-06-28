@@ -75,41 +75,33 @@ def extract(file_name, path = "data", batch_size = 10):
 
         print(f"ELMo processed {(i+1) * batch_size} papers...", end = "\r")
     
-    # concatenate all temporary csv files into a single csv file
-    # this uses the shutil.copyfileobj() function, which doesn't
-    # store the files in memory
-    full_path = os.path.join(path, f"{file_name}_elmo.csv")
-    with open(full_path, 'wb+') as file_out:
+    # ask user if they want to merge batches    
+    cont = None
+    while cont not in {'y','n'}:
+        cont = input('Processed all batches. Merge them all and delete batches? (y/n)')
+        if cont not in {'y','n'}:
+            print("Please answer 'y' for yes or 'n' for no.")
+    
+    if cont = 'y'
+        # concatenate all temporary csv files into a single csv file
+        # this uses the shutil.copyfileobj() function, which doesn't
+        # store the files in memory
+        full_path = os.path.join(path, f"{file_name}_elmo.csv")
+        with open(full_path, 'wb+') as file_out:
+            for i in it.count():
+                try:
+                    full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
+                    with open(full_path, "rb") as file_in:
+                        shutil.copyfileobj(file_in, file_out)
+                except:
+                    break
+
+        # remove all the temporary batch files
         for i in it.count():
             try:
                 full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
-                with open(full_path, "rb") as file_in:
-                    shutil.copyfileobj(file_in, file_out)
+                os.remove(full_path)
             except:
                 break
-
-
-    #elmo_batches = np.ones((1,1024))
-    #for i in it.count():
-    #    full_path = os.path.join(path, f"{file_name}_elmo_{i}.pickle")
-    #    try:
-    #        with open(full_path, "rb") as pickle_in:
-    #            batch = np.asanyarray(pickle.load(pickle_in))
-    #    except:
-    #        break
-    #    elmo_batches = np.vstack((elmo_batches, batch))
-
-    ## save into a pickle file
-    #full_path = os.path.join(path, f"{file_name}_elmo.pickle")
-    #with open(full_path, "wb") as pickle_out:
-    #    pickle.dump(elmo_batches[1:, :], pickle_out)
-    
-    # remove all the temporary batch files
-    for i in it.count():
-        try:
-            full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
-            os.remove(full_path)
-        except:
-            break
 
     print("All done!" + " " * 100)

@@ -133,28 +133,36 @@ def lemmatise_file(file_name, batch_size = 100, path = "data"):
         
         print(f"Cleaned {(i+1) * batch_size} papers...", end = "\r")
     
-    # concatenate all temporary csv files into a single csv file
-    # this uses the shutil.copyfileobj() function, which doesn't
-    # store the files in memory
-    full_path = os.path.join(path, f"{file_name}_clean.csv")
-    with open(full_path, 'wb+') as file_out:
+    # ask user if they want to merge batches    
+    cont = None
+    while cont not in {'y','n'}:
+        cont = input('Processed all batches. Merge them all and delete batches? (y/n)')
+        if cont not in {'y','n'}:
+            print("Please answer 'y' for yes or 'n' for no.")
+    
+    if cont = 'y'
+        # concatenate all temporary csv files into a single csv file
+        # this uses the shutil.copyfileobj() function, which doesn't
+        # store the files in memory
+        full_path = os.path.join(path, f"{file_name}_clean.csv")
+        with open(full_path, 'wb+') as file_out:
+            for i in it.count():
+                try:
+                    full_path = os.path.join(path, f"{file_name}_clean_{i}.csv")
+                    with open(full_path, "rb") as file_in:
+                        shutil.copyfileobj(file_in, file_out)
+                except:
+                    break
+        
+        # remove all the temporary batch files
         for i in it.count():
             try:
                 full_path = os.path.join(path, f"{file_name}_clean_{i}.csv")
-                with open(full_path, "rb") as file_in:
-                    shutil.copyfileobj(file_in, file_out)
+                os.remove(full_path)
             except:
                 break
     
-    # remove all the temporary batch files
-    for i in it.count():
-        try:
-            full_path = os.path.join(path, f"{file_name}_clean_{i}.csv")
-            os.remove(full_path)
-        except:
-            break
-    
-    print("Done!" + " " * 100)
+    print("All done!" + " " * 100)
 
 
 def clean(file_name, lemm_batch_size = 100, path = "data"):
