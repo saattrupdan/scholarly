@@ -83,7 +83,7 @@ def extract(file_name, path = "data", batch_size = 10):
         if cont not in {'y','n'}:
             print("Please answer 'y' for yes or 'n' for no.")
     
-    if cont = 'y'
+    if cont == 'y':
         # concatenate all temporary csv files into a single csv file
         # this uses the shutil.copyfileobj() function, which doesn't
         # store the files in memory
