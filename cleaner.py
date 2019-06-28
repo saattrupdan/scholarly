@@ -104,7 +104,7 @@ def get_preclean_text(file_name, path = "data"):
     del df, preclean_arr
     
 
-def lemmatise_file(file_name, batch_size = 100, path = "data"):
+def lemmatise_file(file_name, batch_size = 500, path = "data"):
     ''' Lemmatise file in batches, and save to csv. '''
 
     nlp = sp.load('en', disable=['parser', 'ner'])
@@ -166,7 +166,7 @@ def lemmatise_file(file_name, batch_size = 100, path = "data"):
     print("All done with cleaning!" + " " * 100)
 
 
-def clean(file_name, lemm_batch_size = 100, path = "data"):
+def clean(file_name, lemm_batch_size = 500, path = "data"):
     ''' Download and clean raw file. '''
 
     full_path = os.path.join(path, f"{file_name}_clean.csv")
