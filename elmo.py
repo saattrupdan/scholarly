@@ -1,5 +1,6 @@
 import numpy as np
 import itertools as it # handling iterators like count()
+import time # used for sleep()
 import shutil # enables copying data without using memory with copyfileobj()
 import os # manipulation of file system
 
@@ -25,19 +26,19 @@ def download_elmo_model():
         os.remove("elmo.tar.gz")
         print("Done!")
 
-
 def extract(file_name, path = "data", batch_size = 10):
-
     # load the ELMo model
     model = hub.Module("elmo", trainable = True)
-
+            
     print("Extracting ELMo features...")
     
     # infinite loop
     for i in it.count():
         full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
         if not os.path.isfile(full_path):
-            
+            # sleep for one second, which should reduce cpu load 
+            time.sleep(1)
+
             # open tensorflow session
             with tf.Session() as sess:
                 
@@ -82,7 +83,7 @@ def extract(file_name, path = "data", batch_size = 10):
         if cont not in {'y','n'}:
             print("Please answer 'y' for yes or 'n' for no.")
     
-    if cont = 'y'
+    if cont == 'y':
         # concatenate all temporary csv files into a single csv file
         # this uses the shutil.copyfileobj() function, which doesn't
         # store the files in memory
