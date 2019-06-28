@@ -104,4 +104,4 @@ def extract(file_name, path = "data", batch_size = 10):
             except:
                 break
 
-    print("All done!" + " " * 100)
+    print("All done with ELMo feature extraction!" + " " * 100)
