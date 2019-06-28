@@ -70,6 +70,8 @@ def download_papers(file_name, path = "data"):
 
 def get_preclean_text(file_name, path = "data"):
     ''' Get csv file, perform basic cleaning tasks and save it to csv. '''
+    
+    print(f"Precleaning...", end = ' ')    
 
     full_path = os.path.join(path, f"{file_name}.csv")
     clean_cats_with_path = lambda x: clean_cats(x, path = path)
@@ -99,6 +101,8 @@ def get_preclean_text(file_name, path = "data"):
     preclean_arr = np.asarray(df['clean_text'])
     full_path = os.path.join(path, f"{file_name}_preclean.csv")
     np.savetxt(full_path, preclean_arr, fmt = '%s')
+
+    print("Done!")
     
 
 def lemmatise_file(file_name, batch_size = 100, path = "data"):
@@ -151,6 +155,8 @@ def lemmatise_file(file_name, batch_size = 100, path = "data"):
             os.remove(full_path)
         except:
             break
+    
+    print("Done!")
 
 
 def clean(file_name, lemm_batch_size = 100, path = "data"):
