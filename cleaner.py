@@ -68,11 +68,10 @@ def download_papers(file_name, path = "data"):
         wget.download(url_start + f"{file_name}.csv", out = full_path)
 
 
+# this function is the only place where we use pandas
 def get_preclean_text(file_name, path = "data"):
     ''' Get csv file, perform basic cleaning tasks and save it to csv. '''
     
-    print(f"Precleaning...", end = ' ')    
-
     full_path = os.path.join(path, f"{file_name}.csv")
     clean_cats_with_path = lambda x: clean_cats(x, path = path)
     df = pd.read_csv(full_path, converters = {'category': clean_cats_with_path})
@@ -101,8 +100,7 @@ def get_preclean_text(file_name, path = "data"):
     preclean_arr = np.asarray(df['clean_text'])
     full_path = os.path.join(path, f"{file_name}_preclean.csv")
     np.savetxt(full_path, preclean_arr, fmt = '%s')
-
-    print("Done!")
+    del df, preclean_arr
     
 
 def lemmatise_file(file_name, batch_size = 100, path = "data"):
@@ -156,7 +154,7 @@ def lemmatise_file(file_name, batch_size = 100, path = "data"):
         except:
             break
     
-    print("Done!")
+    print("Done!" + " " * 100)
 
 
 def clean(file_name, lemm_batch_size = 100, path = "data"):
@@ -165,12 +163,29 @@ def clean(file_name, lemm_batch_size = 100, path = "data"):
     full_path = os.path.join(path, f"{file_name}_clean.csv")
     if os.path.isfile(full_path):
         print("File already cleaned.")
-    else:
-        download_papers(file_name, path = path)
-        get_preclean_text(file_name, path = path)
 
+    else:
+        full_path = os.path.join(path, f"{file_name}_preclean.csv")
+        if not os.path.isfile(full_path):
+            print("Fetching and precleaning raw file...", end = ' ')
+            # download the raw file
+            download_papers(file_name, path = path)
+            
+            # preclean and save the raw file
+            get_preclean_text(file_name, path = path)
+            print("Done!")
+        
+        print("Cleaning precleaned file...")
+        # lemmatise and save the precleaned file
         lemmatise_file(
             file_name = file_name, 
             batch_size = lemm_batch_size,
             path = path
         )
+
+        # remove precleaned file as we have the fully cleaned one at this point
+        try:
+            full_path = os.path.join(path, f"{file_name}_preclean.csv")
+            os.remove(full_path)
+        except:
+            pass

@@ -13,6 +13,8 @@ else:
 
 #data_path = os.path.join("P:/", "Public Folder", "scholarly_data")
 data_path = os.path.join("/home", "leidem", "pCloudDrive", "Public Folder", "scholarly_data")
+
+
 cleaner.setup(path = data_path)
 elmo.download_elmo_model()
 
