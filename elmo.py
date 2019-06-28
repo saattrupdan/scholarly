@@ -3,6 +3,7 @@ import itertools as it # handling iterators like count()
 import time # used for sleep()
 import shutil # enables copying data without using memory with copyfileobj()
 import os # manipulation of file system
+import sys
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # ignore tensorflow warnings
 
@@ -26,14 +27,22 @@ def download_elmo_model():
         os.remove("elmo.tar.gz")
         print("Done!")
 
-def extract(file_name, path = "data", batch_size = 10):
+def extract(file_name, path = "data", batch_size = 10,
+        countdown = False, confirmation = False):
+    
     # load the ELMo model
     model = hub.Module("elmo", trainable = True)
             
     print("Extracting ELMo features...")
     
+    doomsday_counter = 100
+
     # infinite loop
     for i in it.count():
+
+        if doomsday_counter == 0:
+            sys.exit('Doomsday clock ticked out.\n')
+
         full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
         if not os.path.isfile(full_path):
             # sleep for one second, which should reduce cpu load 
@@ -71,13 +80,20 @@ def extract(file_name, path = "data", batch_size = 10):
                     temp_file_name = f"{file_name}_elmo_{i}.csv"
                     full_path = os.path.join(path, temp_file_name)
                     np.savetxt(full_path, elmo_data, delimiter = ',')
+
+                    if countdown:
+                        doomsday_counter -= 1
                 except:
                     break
 
         print(f"ELMo processed {(i+1) * batch_size} papers...", end = "\r")
     
-    # ask user if they want to merge batches    
-    cont = None
+    # ask user if they want to merge batches
+    if confirmation:
+        cont = None
+    else:
+        cont = 'y'
+
     while cont not in {'y','n'}:
         cont = input('Processed all batches. Merge them all and delete batches? (y/n)')
         if cont not in {'y','n'}:
