@@ -6,6 +6,7 @@ import spacy as sp # used for lemmatising text
 import wget # downloading files
 import itertools as it # handling iterators like count()
 import shutil # enables copying data without using memory with copyfileobj()
+import time # enables sleep()
 
 def nan_if_empty(texts):
     ''' Converts empty iterable to NaNs, making it easier to detect by pandas. '''
@@ -136,7 +137,7 @@ def lemmatise_file(file_name, batch_size = 100, path = "data"):
     # ask user if they want to merge batches    
     cont = None
     while cont not in {'y','n'}:
-        cont = input('Processed all batches. Merge them all and delete batches? (y/n)')
+        cont = input('Processed all batches. Merge them all and delete batches? (y/n) \n > ')
         if cont not in {'y','n'}:
             print("Please answer 'y' for yes or 'n' for no.")
     
@@ -176,6 +177,7 @@ def clean(file_name, lemm_batch_size = 100, path = "data"):
         full_path = os.path.join(path, f"{file_name}_preclean.csv")
         if not os.path.isfile(full_path):
             print("Fetching and precleaning raw file...", end = ' ')
+            time.sleep(1)
             # download the raw file
             download_papers(file_name, path = path)
             
