@@ -162,7 +162,7 @@ def lemmatise_file(file_name, batch_size = 100, path = "data"):
             except:
                 break
     
-    print("All done!" + " " * 100)
+    print("All done with cleaning!" + " " * 100)
 
 
 def clean(file_name, lemm_batch_size = 100, path = "data"):
