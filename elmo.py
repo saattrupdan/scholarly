@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import pickle # enables saving data and models locally
 import itertools as it # handling iterators like count()
+import time # used for sleep()
 
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # ignore tensorflow warnings
@@ -25,17 +26,19 @@ def download_elmo_model():
         os.remove("elmo.tar.gz")
         print("Done!")
 
-def extract(file_name, path = "data", batch_size = 50):
+def extract(file_name, path = "data", batch_size = 10):
     # load the ELMo model
     model = hub.Module("elmo", trainable = True)
-
+            
     print("Extracting ELMo features...")
     
     # infinite loop
     for i in it.count():
         full_path = os.path.join(path, f"{file_name}_elmo_{i}.pickle")
         if not os.path.isfile(full_path):
-            
+            # sleep for one second, which should reduce cpu load 
+            time.sleep(1)
+
             # open tensorflow session
             with tf.Session() as sess:
                 
@@ -57,8 +60,8 @@ def extract(file_name, path = "data", batch_size = 50):
                 # extract ELMo features
                 embeddings = model(
                         batch, 
-                        signature="default", 
-                        as_dict=True
+                        signature = "default", 
+                        as_dict = True
                         )["elmo"]
 
                 # save the average ELMo features for every title+abstract
@@ -69,16 +72,24 @@ def extract(file_name, path = "data", batch_size = 50):
                 full_path = os.path.join(path, temp_pickle_file_name)
                 with open(full_path, "wb") as pickle_out:
                     pickle.dump(elmo_data, pickle_out)
+                
+                # remove reference to variables to save memory
+                del temp_pickle_file_name
+                del full_path
+                del batch
+                del embeddings
+                del elmo_data
 
         print(f"Processed {(i+1) * batch_size} papers...", end = "\r")
     
     # concatenate all batches into a single array 'elmo_batches'
     elmo_batches = np.ones((1,1024))
     for i in it.count():
-        full_path = os.path.join(path, f"{file_name}_elmo_{i}.pickle")
+        temp_pickle_file_name = f"{file_name}_elmo_{i}.pickle"
+        full_path = os.path.join(path, temp_pickle_file_name)
         try:
             with open(full_path, "rb") as pickle_in:
-                batch = np.asanyarray(pickle.load(pickle_in))
+                batch = np.asarray(pickle.load(pickle_in))
         except:
             break
         elmo_batches = np.vstack((elmo_batches, batch))
@@ -90,7 +101,8 @@ def extract(file_name, path = "data", batch_size = 50):
     
     # remove all the temporary batch pickle files
     for i in it.count():
-        full_path = os.path.join(path, f"{file_name}_elmo_{i}.pickle")
+        temp_pickle_file_name = f"{file_name}_elmo_{i}.pickle"
+        full_path = os.path.join(path, temp_pickle_file_name)
         try:
             os.remove(full_path)
         except:
