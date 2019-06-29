@@ -32,8 +32,8 @@ for file_name in file_names:
             file_name = file_name,
             path = data_path,
             batch_size = 10,
-            countdown = True,
-            confirmation = True
+            doomsday_clock = 75,
+            confirmation = False
             )
     else:
         print(f"Already ELMo'd that one. Moving on...")
