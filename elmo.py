@@ -3,7 +3,7 @@ import itertools as it # handling iterators like count()
 import time # used for sleep()
 import shutil # enables copying data without using memory with copyfileobj()
 import os # manipulation of file system
-import sys
+import sys # used for exit()
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # ignore tensorflow warnings
 
@@ -12,6 +12,8 @@ import tensorflow as tf
 
 
 def download_elmo_model():
+    ''' Download the pre-trained ELMo model and store it in /elmo.'''
+
     if not os.path.isdir("elmo"):
         # download ELMo model
         print("Downloading compressed ELMo model...", end = " ")
@@ -27,20 +29,31 @@ def download_elmo_model():
         os.remove("elmo.tar.gz")
         print("Done!")
 
+
 def extract(file_name, path = "data", batch_size = 10,
-        countdown = False, confirmation = False):
+        doomsday_clock = np.inf, confirmation = False):
+    ''' Extract ELMo features from file and store them as a csv file.
+
+    INPUT:
+        str file_name       =   name of file, without file extension
+        str path            =   output folder
+        int batch_size      =   amount of texts processed at a time
+        int doomsday_clock  =   stop script after this many iterations
+        bool confirmation   =   prompt user before merging batches.
+                                this is helpful when prototyping,
+                                as otherwise it'll merge whatever
+                                it has when aborting script'''
     
     # load the ELMo model
     model = hub.Module("elmo", trainable = True)
             
     print("Extracting ELMo features...")
     
-    doomsday_counter = 100
-
     # infinite loop
     for i in it.count():
-
-        if doomsday_counter == 0:
+        
+        # if it's doomsday then exit python
+        if doomsday_clock == 0:
             sys.exit('Doomsday clock ticked out.\n')
 
         full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
@@ -80,9 +93,10 @@ def extract(file_name, path = "data", batch_size = 10,
                     temp_file_name = f"{file_name}_elmo_{i}.csv"
                     full_path = os.path.join(path, temp_file_name)
                     np.savetxt(full_path, elmo_data, delimiter = ',')
-
-                    if countdown:
-                        doomsday_counter -= 1
+                    
+                    # doomsday clock gets one step closer to doomsday
+                    # if doomsday_clock == np.inf then this stays np.inf
+                    doomsday_clock -= 1
                 except:
                     break
 
@@ -121,4 +135,4 @@ def extract(file_name, path = "data", batch_size = 10,
             except:
                 break
 
-    print("All done!" + " " * 100)
+    print("All done!" + " " * 25)
