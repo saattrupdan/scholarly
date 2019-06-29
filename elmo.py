@@ -109,7 +109,7 @@ def extract(file_name, path = "data", batch_size = 10,
         cont = 'y'
 
     while cont not in {'y','n'}:
-        cont = input('Processed all batches. Merge them all and delete batches? (y/n)')
+        cont = input('Processed all batches. Merge them all and delete batches? (y/n) \n > ')
         if cont not in {'y','n'}:
             print("Please answer 'y' for yes or 'n' for no.")
     
@@ -135,4 +135,4 @@ def extract(file_name, path = "data", batch_size = 10,
             except:
                 break
 
-    print("All done!" + " " * 25)
+    print("All done with ELMo feature extraction!" + " " * 25)
