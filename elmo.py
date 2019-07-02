@@ -28,7 +28,7 @@ def download_elmo_model():
         print("Done!")
 
 def extract(file_name, path = "data", batch_size = 10,
-        countdown = False, confirmation = False):
+        doomsday_clock = np.inf, confirmation = False):
     
     # load the ELMo model
     model = hub.Module("elmo", trainable = True)
@@ -83,7 +83,7 @@ def extract(file_name, path = "data", batch_size = 10,
 
                     if countdown:
                         doomsday_counter -= 1
-                except:
+                except ValueError:
                     break
 
         print(f"ELMo processed {(i+1) * batch_size} papers...", end = "\r")
@@ -121,4 +121,4 @@ def extract(file_name, path = "data", batch_size = 10,
             except:
                 break
 
-    print("All done with ELMo feature extraction!" + " " * 100)
+    print("All done with ELMo feature extraction!" + " " * 25)
