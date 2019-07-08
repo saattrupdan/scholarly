@@ -27,15 +27,15 @@ for file_name in file_names:
     if not os.path.isfile(output_path):
         cleaner.clean(
             file_name = file_name, 
-            lemm_batch_size = 1000,
             path = data_path,
+            lemm_batch_size = 1000,
             confirmation = True
             )
         elmo.extract(
             file_name = file_name,
             path = data_path,
             batch_size = 10,
-            countdown = 75,
+            doomsday_clock = 75,
             confirmation = True
             )
     else:
