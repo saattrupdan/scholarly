@@ -97,7 +97,7 @@ def extract(file_name, path = "data", batch_size = 10,
                     # doomsday clock gets one step closer to doomsday
                     # if doomsday_clock == np.inf then this stays np.inf
                     doomsday_clock -= 1
-                except:
+                except ValueError:
                     break
 
         print(f"ELMo processed {(i+1) * batch_size} papers...", end = "\r")

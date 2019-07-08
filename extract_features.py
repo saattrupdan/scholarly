@@ -14,6 +14,8 @@ else:
 data_path = os.path.join("P:/", "Public Folder", "scholarly_data")
 #data_path = os.path.join("/home", "leidem", "pCloudDrive", "Public Folder", "scholarly_data")
 
+#data_path = 'data'
+
 cleaner.setup(path = data_path)
 elmo.download_elmo_model()
 
@@ -25,15 +27,16 @@ for file_name in file_names:
     if not os.path.isfile(output_path):
         cleaner.clean(
             file_name = file_name, 
-            lemm_batch_size = 500, 
-            path = data_path
+            path = data_path,
+            lemm_batch_size = 1000,
+            confirmation = True
             )
         elmo.extract(
             file_name = file_name,
             path = data_path,
             batch_size = 10,
             doomsday_clock = 75,
-            confirmation = False
+            confirmation = True
             )
     else:
         print(f"Already ELMo'd that one. Moving on...")

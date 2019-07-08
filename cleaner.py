@@ -6,7 +6,6 @@ import spacy as sp # used for lemmatising text
 import wget # downloading files
 import itertools as it # handling iterators like count()
 import shutil # enables copying data without using memory with copyfileobj()
-import time # enables sleep()
 
 def nan_if_empty(texts):
     ''' Converts empty iterable to NaNs, making it easier to detect by pandas. '''
@@ -70,13 +69,18 @@ def download_papers(file_name, path = "data"):
 
 
 # this function is the only place where we use pandas
+# and the only place where we load in a full file
 def get_preclean_text(file_name, path = "data"):
     ''' Get csv file, perform basic cleaning tasks and save it to csv. '''
     
+    print("Loading in raw file...")
+
     full_path = os.path.join(path, f"{file_name}.csv")
     clean_cats_with_path = lambda x: clean_cats(x, path = path)
     df = pd.read_csv(full_path, converters = {'category': clean_cats_with_path})
     df = df[['title', 'abstract', 'category']]
+
+    print("Precleaning raw file...")
 
     # drop rows with NaNs
     df.dropna(inplace=True)
@@ -104,9 +108,10 @@ def get_preclean_text(file_name, path = "data"):
     del df, preclean_arr
     
 
-def lemmatise_file(file_name, batch_size = 500, path = "data"):
+def lemmatise_file(file_name, batch_size = 1000, path = "data", confirmation = True):
     ''' Lemmatise file in batches, and save to csv. '''
 
+    print("Cleaning precleaned file...")
     nlp = sp.load('en', disable=['parser', 'ner'])
     
     for i in it.count():
@@ -134,8 +139,12 @@ def lemmatise_file(file_name, batch_size = 500, path = "data"):
         
         print(f"Cleaned {(i+1) * batch_size} papers...", end = "\r")
     
-    # ask user if they want to merge batches    
-    cont = None
+    # ask user if they want to merge batches
+    if confirmation:
+        cont = None
+    else:
+        cont = 'y'
+
     while cont not in {'y','n'}:
         cont = input('Processed all batches. Merge them all and delete batches? (y/n) \n > ')
         if cont not in {'y','n'}:
@@ -162,11 +171,18 @@ def lemmatise_file(file_name, batch_size = 500, path = "data"):
                 os.remove(full_path)
             except:
                 break
+
+        # remove precleaned file as we have the fully cleaned one at this point
+        try:
+            full_path = os.path.join(path, f"{file_name}_preclean.csv")
+            os.remove(full_path)
+        except:
+            pass
     
-    print("All done with cleaning!" + " " * 100)
+    print("All done with cleaning!" + " " * 25)
 
 
-def clean(file_name, lemm_batch_size = 500, path = "data"):
+def clean(file_name, lemm_batch_size = 1000, path = "data", confirmation = True):
     ''' Download and clean raw file. '''
 
     full_path = os.path.join(path, f"{file_name}_clean.csv")
@@ -176,26 +192,16 @@ def clean(file_name, lemm_batch_size = 500, path = "data"):
     else:
         full_path = os.path.join(path, f"{file_name}_preclean.csv")
         if not os.path.isfile(full_path):
-            print("Fetching and precleaning raw file...", end = ' ')
-            time.sleep(1)
             # download the raw file
             download_papers(file_name, path = path)
             
             # preclean and save the raw file
             get_preclean_text(file_name, path = path)
-            print("Done!")
         
-        print("Cleaning precleaned file...")
         # lemmatise and save the precleaned file
         lemmatise_file(
             file_name = file_name, 
             batch_size = lemm_batch_size,
-            path = path
+            path = path,
+            confirmation = confirmation
         )
-
-        # remove precleaned file as we have the fully cleaned one at this point
-        try:
-            full_path = os.path.join(path, f"{file_name}_preclean.csv")
-            os.remove(full_path)
-        except:
-            pass
