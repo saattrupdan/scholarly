@@ -56,7 +56,7 @@ def setup(path = "data"):
     if not os.path.isfile(full_path):
         wget.download(url_start + "cats.csv", out = full_path)
     else:
-        print("it's already downloaded!")
+        print("cats.csv is already downloaded.")
 
 
 def download_papers(file_name, path = "data"):
@@ -66,6 +66,8 @@ def download_papers(file_name, path = "data"):
     full_path = os.path.join(path, f'{file_name}.csv')
     if not os.path.isfile(full_path):
         wget.download(url_start + f"{file_name}.csv", out = full_path)
+    else:
+        print(f"{file_name}.csv is already downloaded.")
 
 
 # this function is the only place where we use pandas
@@ -77,8 +79,7 @@ def get_preclean_text(file_name, path = "data"):
 
     full_path = os.path.join(path, f"{file_name}.csv")
     clean_cats_with_path = lambda x: clean_cats(x, path = path)
-    df = pd.read_csv(full_path, converters = {'category': clean_cats_with_path})
-    df = df[['title', 'abstract', 'category']]
+    df = pd.read_csv(full_path, usecols = ['title', 'abstract', 'category'])
 
     print("Precleaning raw file...")
 
@@ -98,13 +99,19 @@ def get_preclean_text(file_name, path = "data"):
 
     # remove numbers
     df['clean_text'] = df['clean_text'].str.replace("[0-9]", " ")
-
+    
     # remove whitespaces
     df['clean_text'] = df['clean_text'].apply(lambda x:' '.join(x.split()))
-
-    preclean_arr = np.asarray(df['clean_text'])
+    
+    # save array with cleaned texts
     full_path = os.path.join(path, f"{file_name}_preclean.csv")
-    np.savetxt(full_path, preclean_arr, fmt = '%s')
+    preclean_arr = np.asarray(df['clean_text'])
+    np.savetxt(full_path, preclean_arr, fmt = '%s', encoding = 'utf-8')
+
+    # save dataframe with categories
+    full_path = os.path.join(path, f"{file_name}_cats.csv")
+    df['category'].to_csv(full_path, index = False)
+
     del df, preclean_arr
     
 

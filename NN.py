@@ -127,14 +127,14 @@ def initialise_params(layer_dims, init_method = 'he'):
         
     return params
 
-def update_params(params, grads, alpha):
+def update_params(params, grads, learning_rate):
     """
     Update parameters using gradient descent.
     
     INPUT:
     params -- python dictionary containing your parameters 
     grads -- python dictionary containing your gradients, output of back_prop
-    alpha -- learning rate of the gradient descent update rule
+    learning_rate -- learning rate of the gradient descent update rule
     
     OUTPUT:
     params -- python dictionary containing your updated parameters 
@@ -144,8 +144,8 @@ def update_params(params, grads, alpha):
     L = len(params) // 2 
     
     for l in range(L):
-        params[f'W{l+1}'] -= alpha * grads[f'dW{l+1}']
-        params[f'b{l+1}'] -= alpha * grads[f'db{l+1}']
+        params[f'W{l+1}'] -= learning_rate * grads[f'dW{l+1}']
+        params[f'b{l+1}'] -= learning_rate * grads[f'db{l+1}']
         
     return params
 
@@ -302,7 +302,7 @@ def back_prop(AL, Y, caches, activations = 'default', cost_function = 'cross_ent
 ##### BUILD MODEL #####
 
 def train_nn(X, Y, layer_dims, activations = 'default', cost_function = 'cross_entropy',
-             alpha = 0.0075, num_iterations = 3000, plot_cost = False):
+             learning_rate = 0.0075, num_iterations = 3000, plot_cost = False):
     """
     Trains a neural network.
     
@@ -312,7 +312,7 @@ def train_nn(X, Y, layer_dims, activations = 'default', cost_function = 'cross_e
     layer_dims -- list with the input size and each layer size, of length (number of layers + 1)
     activations -- list of activation functions used; defaults to ReLU + sigmoid
     cost_function -- a string describing what cost function is used
-    alpha -- learning rate of the gradient descent update rule
+    learning_rate -- learning rate of the gradient descent update rule
     num_iterations -- number of iterations of the optimization loop
     plot_cost -- if True, it plots the cost
     
@@ -327,7 +327,7 @@ def train_nn(X, Y, layer_dims, activations = 'default', cost_function = 'cross_e
     for i in range(0, num_iterations):
         AL, caches = forward_prop(X, params, activations)
         grads = back_prop(AL, Y, caches, activations, cost_function)
-        params = update_params(params, grads, alpha)
+        params = update_params(params, grads, learning_rate)
 
         #if plot_cost and i % 100 == 0:
         if cost_function == 'cross_entropy':
@@ -343,7 +343,7 @@ def train_nn(X, Y, layer_dims, activations = 'default', cost_function = 'cross_e
         plt.plot(np.squeeze(costs))
         plt.ylabel('cost')
         plt.xlabel('iterations')
-        plt.title(f"Learning rate = {alpha}")
+        plt.title(f"Learning rate = {learning_rate}")
         plt.show()
     
     return params
@@ -352,13 +352,13 @@ def train_nn(X, Y, layer_dims, activations = 'default', cost_function = 'cross_e
 class NeuralNetwork(TransformerMixin, BaseEstimator):
 
     def __init__(self, layer_dims = [1], activations = 'default', init_method = 'he', 
-                 cost_function = 'cross_entropy', alpha = 0.0075, num_iterations = 3000, 
+                 cost_function = 'cross_entropy', learning_rate= 0.0075, num_iterations = 3000, 
                  plot_cost = False):
         self.layer_dims_ = layer_dims
         self.activations_ = activations
         self.init_method_ = init_method
         self.cost_function_ = cost_function
-        self.alpha_ = alpha
+        self.learning_rate_ = learning_rate
         self.num_iterations_ = num_iterations
         self.plot_cost_ = plot_cost
         self.params_ = None
@@ -366,7 +366,7 @@ class NeuralNetwork(TransformerMixin, BaseEstimator):
     def fit(self, X, Y):
         self.layer_dims_ = [X.shape[0]] + self.layer_dims_
         self.params_ = train_nn(X, Y, self.layer_dims_, self.activations_, self.cost_function_,
-                                self.alpha_, self.num_iterations_, self.plot_cost_)
+                                self.learning_rate_, self.num_iterations_, self.plot_cost_)
         return self
     
     def predict(self, X):
