@@ -28,6 +28,8 @@ def download_elmo_model():
             tar.extractall("elmo")
         os.remove("elmo.tar.gz")
         print("Done!")
+    else:
+        print("ELMo model already downloaded.")
 
 
 def extract(file_name, path = "data", batch_size = 10,
