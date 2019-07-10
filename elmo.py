@@ -76,31 +76,31 @@ def extract(file_name, path = "data", batch_size = 10,
                         max_rows = batch_size,
                         dtype = object
                         )
-                
-                    # initialise session
-                    sess.run(tf.global_variables_initializer())
-                    sess.run(tf.tables_initializer())
-                    
-                    # extract ELMo features
-                    embeddings = model(
-                        batch, 
-                        signature = "default", 
-                        as_dict = True
-                        )["elmo"]
-
-                    # save the average ELMo features for every title+abstract
-                    elmo_data = sess.run(tf.reduce_mean(embeddings, 1))
-                
-                    # save ELMo features for the batch into a csv file
-                    temp_file_name = f"{file_name}_elmo_{i}.csv"
-                    full_path = os.path.join(path, temp_file_name)
-                    np.savetxt(full_path, elmo_data, delimiter = ',')
-                    
-                    # doomsday clock gets one step closer to doomsday
-                    # if doomsday_clock == np.inf then this stays np.inf
-                    doomsday_clock -= 1
-                except ValueError:
+                except StopIteration:
                     break
+            
+                # initialise session
+                sess.run(tf.global_variables_initializer())
+                sess.run(tf.tables_initializer())
+                
+                # extract ELMo features
+                embeddings = model(
+                    batch, 
+                    signature = "default", 
+                    as_dict = True
+                    )["elmo"]
+
+                # save the average ELMo features for every title+abstract
+                elmo_data = sess.run(tf.reduce_mean(embeddings, 1))
+            
+                # save ELMo features for the batch into a csv file
+                temp_file_name = f"{file_name}_elmo_{i}.csv"
+                full_path = os.path.join(path, temp_file_name)
+                np.savetxt(full_path, elmo_data, delimiter = ',')
+                
+                # doomsday clock gets one step closer to doomsday
+                # if doomsday_clock == np.inf then this stays np.inf
+                doomsday_clock -= 1
 
         print(f"ELMo processed {(i+1) * batch_size} papers...", end = "\r")
     
