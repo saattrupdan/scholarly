@@ -53,56 +53,57 @@ def extract(file_name, path = "data", batch_size = 10,
     
     # infinite loop
     for i in it.count():
-        
-        # if it's doomsday then exit python
-        if doomsday_clock == 0:
-            sys.exit('Doomsday clock ticked out.\n')
+        if i % 2 == 0:
+            # if it's doomsday then exit python
+            if doomsday_clock == 0:
+                sys.exit('Doomsday clock ticked out.\n')
 
-        full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
-        if not os.path.isfile(full_path):
-            # sleep for one second, which should reduce cpu load 
-            time.sleep(1)
+            full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
+            if not os.path.isfile(full_path):
+                # sleep for one second, which should reduce cpu load 
+                time.sleep(1)
 
-            # open tensorflow session
-            with tf.Session() as sess:
+                # open tensorflow session
+                with tf.Session() as sess:
+                    
+                    # get the next batch and break loop if it does not exist 
+                    full_path = os.path.join(path, f"{file_name}_clean.csv")
+                    try:
+                        batch = np.loadtxt(
+                            fname = full_path,
+                            delimiter = '\n',
+                            skiprows = i * batch_size,
+                            max_rows = batch_size,
+                            dtype = object,
+                            encoding = 'utf-8'
+                            )
+                    except StopIteration:
+                        break
                 
-                # get the next batch and break loop if it does not exist 
-                full_path = os.path.join(path, f"{file_name}_clean.csv")
-                try:
-                    batch = np.loadtxt(
-                        fname = full_path,
-                        delimiter = '\n',
-                        skiprows = i * batch_size,
-                        max_rows = batch_size,
-                        dtype = object
-                        )
-                except StopIteration:
-                    break
-            
-                # initialise session
-                sess.run(tf.global_variables_initializer())
-                sess.run(tf.tables_initializer())
-                
-                # extract ELMo features
-                embeddings = model(
-                    batch, 
-                    signature = "default", 
-                    as_dict = True
-                    )["elmo"]
+                    # initialise session
+                    sess.run(tf.global_variables_initializer())
+                    sess.run(tf.tables_initializer())
+                    
+                    # extract ELMo features
+                    embeddings = model(
+                        batch, 
+                        signature = "default", 
+                        as_dict = True
+                        )["elmo"]
 
-                # save the average ELMo features for every title+abstract
-                elmo_data = sess.run(tf.reduce_mean(embeddings, 1))
-            
-                # save ELMo features for the batch into a csv file
-                temp_file_name = f"{file_name}_elmo_{i}.csv"
-                full_path = os.path.join(path, temp_file_name)
-                np.savetxt(full_path, elmo_data, delimiter = ',')
+                    # save the average ELMo features for every title+abstract
+                    elmo_data = sess.run(tf.reduce_mean(embeddings, 1))
                 
-                # doomsday clock gets one step closer to doomsday
-                # if doomsday_clock == np.inf then this stays np.inf
-                doomsday_clock -= 1
+                    # save ELMo features for the batch into a csv file
+                    temp_file_name = f"{file_name}_elmo_{i}.csv"
+                    full_path = os.path.join(path, temp_file_name)
+                    np.savetxt(full_path, elmo_data, delimiter = ',')
+                    
+                    # doomsday clock gets one step closer to doomsday
+                    # if doomsday_clock == np.inf then this stays np.inf
+                    doomsday_clock -= 1
 
-        print(f"ELMo processed {(i+1) * batch_size} papers...", end = "\r")
+            print(f"ELMo processed {(i+1) * batch_size} papers...", end = "\r")
     
     # ask user if they want to merge batches
     if confirmation:
