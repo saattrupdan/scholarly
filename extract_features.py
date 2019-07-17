@@ -1,8 +1,10 @@
 import cleaner
 import elmo
+
 import os
 import sys
-import itertools as it
+import itertools as it # tools for iterators, enables e.g. count()
+from pathlib import Path # to get home directory
 
 # set list of file_names
 if len(sys.argv) > 1:
@@ -11,10 +13,8 @@ else:
     file_names = [f'arxiv_sample_{i}' for i in
         [1000, 5000, 10000, 25000, 50000, 100000, 200000, 500000, 750000]] + ['arxiv']
 
-#data_path = os.path.join("P:/", "Public Folder", "scholarly_data")
-data_path = os.path.join("/home", "leidem", "pCloudDrive", "Public Folder", "scholarly_data")
-
-#data_path = 'data'
+home_dir = str(Path.home())
+data_path = os.path.join(home_dir, "pCloudDrive", "Public Folder", "scholarly_data")
 
 cleaner.setup(path = data_path)
 elmo.download_elmo_model()

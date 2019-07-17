@@ -4,6 +4,8 @@ import time # used for sleep()
 import shutil # enables copying data without using memory with copyfileobj()
 import os # manipulation of file system
 import sys # used for exit()
+import wget # for downloading files
+import tarfile # for unpacking files
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # ignore tensorflow warnings
 
@@ -53,7 +55,7 @@ def extract(file_name, path = "data", batch_size = 10,
     
     # infinite loop
     for i in it.count():
-        if i % 2 == 0 && i % 4 == 0:
+        if i % 4 == 2:
             # if it's doomsday then exit python
             if doomsday_clock == 0:
                 sys.exit('Doomsday clock ticked out.\n')
