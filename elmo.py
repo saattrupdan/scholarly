@@ -53,7 +53,7 @@ def extract(file_name, path = "data", batch_size = 10,
     
     # infinite loop
     for i in it.count():
-        if i % 2 == 0 && i % 4 == 0:
+        if i % 4 == 0:
             # if it's doomsday then exit python
             if doomsday_clock == 0:
                 sys.exit('Doomsday clock ticked out.\n')
