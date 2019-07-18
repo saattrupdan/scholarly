@@ -61,7 +61,7 @@ def setup(path = "data"):
 
 def download_papers(file_name, path = "data"):
     ''' Download the raw paper data. '''
-
+    
     url_start = f"https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data/"
     full_path = os.path.join(path, f'{file_name}.csv')
     if not os.path.isfile(full_path):
@@ -81,6 +81,7 @@ def get_preclean_text(file_name, path = "data"):
     clean_cats_with_path = lambda x: clean_cats(x, path = path)
     df = pd.read_csv(full_path, usecols = ['title', 'abstract', 'category'])
 
+    print("Raw file loaded.")
     print("Precleaning raw file...")
 
     # drop rows with NaNs
@@ -113,6 +114,8 @@ def get_preclean_text(file_name, path = "data"):
     df['category'].to_csv(full_path, index = False)
 
     del df, preclean_arr
+
+    print("Preclean complete.")
     
 
 def lemmatise_file(file_name, batch_size = 1000, path = "data", confirmation = True):
@@ -158,25 +161,35 @@ def lemmatise_file(file_name, batch_size = 1000, path = "data", confirmation = T
             print("Please answer 'y' for yes or 'n' for no.")
     
     if cont == 'y':
+        print("Merging files...")
+
         # concatenate all temporary csv files into a single csv file
         # this uses the shutil.copyfileobj() function, which doesn't
         # store the files in memory
         full_path = os.path.join(path, f"{file_name}_clean.csv")
         with open(full_path, 'wb+') as file_out:
             for i in it.count():
+                if i % 100 == 0:
+                    print(f"{i} files merged...", end = "\r")
                 try:
                     full_path = os.path.join(path, f"{file_name}_clean_{i}.csv")
                     with open(full_path, "rb") as file_in:
                         shutil.copyfileobj(file_in, file_out)
-                except:
+                except Exception as e:
+                    print(f"Exception: {e}") # delete this later
                     break
         
+        print("") # to deal with \r
+        print("Merge complete.")
+        
         # remove all the temporary batch files
+        print("Removing temporary files...")
         for i in it.count():
             try:
                 full_path = os.path.join(path, f"{file_name}_clean_{i}.csv")
                 os.remove(full_path)
-            except:
+            except Exception as e:
+                print(f"Exception: {e}") # delete this later
                 break
 
         # remove precleaned file as we have the fully cleaned one at this point
@@ -185,8 +198,10 @@ def lemmatise_file(file_name, batch_size = 1000, path = "data", confirmation = T
             os.remove(full_path)
         except:
             pass
+
+        print("Removal complete.")
     
-    print("All done with cleaning!" + " " * 25)
+    print("All done with cleaning!")
 
 
 def clean(file_name, lemm_batch_size = 1000, path = "data", confirmation = True):
