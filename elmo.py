@@ -57,6 +57,7 @@ def extract(file_name, path = "data", batch_size = 10,
     for i in it.count():
         # if it's doomsday then exit python
         if doomsday_clock == 0:
+            print("") # deal with \r
             sys.exit('Doomsday clock ticked out.\n')
 
         full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
