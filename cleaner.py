@@ -111,7 +111,7 @@ def get_preclean_text(file_name, path = "data"):
 
     # save dataframe with categories
     full_path = os.path.join(path, f"{file_name}_cats.csv")
-    df['category'].to_csv(full_path, index = False)
+    df['category'].to_csv(full_path, index = False, header = False)
 
     del df, preclean_arr
 
@@ -161,6 +161,7 @@ def lemmatise_file(file_name, batch_size = 1000, path = "data", confirmation = T
             print("Please answer 'y' for yes or 'n' for no.")
     
     if cont == 'y':
+        print("") # deal with \r
         print("Merging files...")
 
         # concatenate all temporary csv files into a single csv file
