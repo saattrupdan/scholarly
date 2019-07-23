@@ -1,5 +1,6 @@
 import cleaner
 import elmo
+import onehot
 
 import os
 import sys
@@ -23,20 +24,20 @@ for file_name in file_names:
     print("------------------------------------")
     print(f"NOW PROCESSING: {file_name}")
     print("------------------------------------")
-    output_path = os.path.join(data_path, f"{file_name}_elmo.csv")
-    if not os.path.isfile(output_path):
-        cleaner.clean(
-            file_name = file_name, 
-            path = data_path,
-            lemm_batch_size = 1000,
-            confirmation = True
-            )
-        elmo.extract(
-            file_name = file_name,
-            path = data_path,
-            batch_size = 20,
-            doomsday_clock = 50,
-            confirmation = True
-            )
-    else:
-        print(f"Already ELMo'd that one. Moving on...")
+    cleaner.clean(
+        file_name = file_name, 
+        path = data_path,
+        lemm_batch_size = 1000,
+        confirmation = False 
+        )
+    elmo.extract(
+        file_name = file_name,
+        path = data_path,
+        batch_size = 20,
+        doomsday_clock = 50,
+        confirmation = True
+        )
+    onehot.one_hot_agg(
+        file_name = file_name,
+        path = data_path
+        )
