@@ -6,6 +6,7 @@ import os # manipulation of file system
 import sys # used for exit()
 import wget # for downloading files
 import tarfile # for unpacking files
+import warnings # allows suppression of warnings
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # ignore tensorflow warnings
 
@@ -48,108 +49,112 @@ def extract(file_name, path = "data", batch_size = 10,
                                 as otherwise it'll merge whatever
                                 it has when aborting script'''
     
-    # load the ELMo model
-    model = hub.Module("elmo", trainable = True)
-            
-    print("Extracting ELMo features...")
-    
-    # infinite loop
-    for i in it.count():
-        # if it's doomsday then exit python
-        if doomsday_clock == 0:
-            print("") # deal with \r
-            sys.exit('Doomsday clock ticked out.\n')
-
-        full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
-        if not os.path.isfile(full_path):
-            # open tensorflow session
-            with tf.compat.v1.Session() as sess:
-                
-                # get the next batch and break loop if it does not exist 
-                full_path = os.path.join(path, f"{file_name}_clean.csv")
-                try:
-                    batch = np.loadtxt(
-                        fname = full_path,
-                        delimiter = '\n',
-                        skiprows = i * batch_size,
-                        max_rows = batch_size,
-                        dtype = object,
-                        encoding = 'utf-8'
-                        )
-                except StopIteration:
-                    break
-            
-                # initialise session
-                sess.run(tf.compat.v1.global_variables_initializer())
-                sess.run(tf.compat.v1.tables_initializer())
-                
-                # extract ELMo features
-                embeddings = model(
-                    batch, 
-                    signature = "default", 
-                    as_dict = True
-                    )["elmo"]
-
-                # save the average ELMo features for every title+abstract
-                elmo_data = sess.run(tf.reduce_mean(embeddings, 1))
-            
-                # save ELMo features for the batch into a csv file
-                temp_file_name = f"{file_name}_elmo_{i}.csv"
-                full_path = os.path.join(path, temp_file_name)
-                np.savetxt(full_path, elmo_data, delimiter = ',')
-                
-                # doomsday clock gets one step closer to doomsday
-                # if doomsday_clock == np.inf then this stays np.inf
-                doomsday_clock -= 1
-
-        print(f"ELMo processed {(i+1) * batch_size} papers... " \
-                f"Doomsday clock at {doomsday_clock}...", end = "\r")
-
-    print("") # to deal with \r
-    
-    # ask user if they want to merge batches
-    if confirmation:
-        cont = None
+    full_path = os.path.join(path, f"{file_name}_elmo.csv")
+    if os.path.isfile(full_path):
+        print("File already ELMo'd.")
     else:
-        cont = 'y'
-
-    while cont not in {'y','n'}:
-        cont = input('Processed all batches. Merge them all' \
-                     ' and delete batches? (y/n) \n > ')
-        if cont not in {'y','n'}:
-            print("Please answer 'y' for yes or 'n' for no.")
-    
-    if cont == 'y':
-        print("Merging files...")
+        # load the ELMo model
+        model = hub.Module("elmo", trainable = True)
+                
+        print("Extracting ELMo features...")
         
-        # concatenate all temporary csv files into a single csv file
-        # this uses the shutil.copyfileobj() function, which doesn't
-        # store the files in memory
-        full_path = os.path.join(path, f"{file_name}_elmo.csv")
-        with open(full_path, 'wb+') as file_out:
-            for i in it.count():
-                if i % 100 == 0:
-                    print(f"{i} files merged...", end = "\r")
-                try:
-                    full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
-                    with open(full_path, "rb") as file_in:
-                        shutil.copyfileobj(file_in, file_out)
-                except Exception as e:
-                    print(f"Exception: {e}") # delete this later
-                    break
+        # infinite loop
+        for i in it.count():
+            # if it's doomsday then exit python
+            if doomsday_clock == 0:
+                print("") # deal with \r
+                sys.exit('Doomsday clock ticked out.\n')
+
+            full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
+            if not os.path.isfile(full_path):
+                # open tensorflow session
+                with tf.compat.v1.Session() as sess:
+                    
+                    # get the next batch and break loop if it does not exist 
+                    full_path = os.path.join(path, f"{file_name}_clean.csv")
+                    try:
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore")
+                            batch = np.loadtxt(
+                                fname = full_path,
+                                delimiter = '\n',
+                                skiprows = i * batch_size,
+                                max_rows = batch_size,
+                                dtype = object,
+                                encoding = 'utf-8'
+                                )
+                    except StopIteration:
+                        break
+                
+                    # initialise session
+                    sess.run(tf.compat.v1.global_variables_initializer())
+                    sess.run(tf.compat.v1.tables_initializer())
+                    
+                    # extract ELMo features
+                    embeddings = model(
+                        batch, 
+                        signature = "default", 
+                        as_dict = True
+                        )["elmo"]
+
+                    # save the average ELMo features for every title+abstract
+                    elmo_data = sess.run(tf.reduce_mean(embeddings, 1))
+                
+                    # save ELMo features for the batch into a csv file
+                    temp_file_name = f"{file_name}_elmo_{i}.csv"
+                    full_path = os.path.join(path, temp_file_name)
+                    np.savetxt(full_path, elmo_data, delimiter = ',')
+                    
+                    # doomsday clock gets one step closer to doomsday
+                    # if doomsday_clock == np.inf then this stays np.inf
+                    doomsday_clock -= 1
+
+            print(f"ELMo processed {(i+1) * batch_size} papers... " \
+                    f"Doomsday clock at {doomsday_clock}...", end = "\r")
 
         print("") # to deal with \r
-        print("Merge complete.")
+        
+        # ask user if they want to merge batches
+        if confirmation:
+            cont = None
+        else:
+            cont = 'y'
 
-        # remove all the temporary batch files
-        print("Removing temporary files...")
-        for i in it.count():
-            try:
-                full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
-                os.remove(full_path)
-            except Exception as e:
-                print(f"Exception: {e}") # delete this later
-                break
-        print("Removal complete.")
+        while cont not in {'y','n'}:
+            cont = input('Processed all batches. Merge them all' \
+                         ' and delete batches? (y/n) \n > ')
+            if cont not in {'y','n'}:
+                print("Please answer 'y' for yes or 'n' for no.")
+        
+        if cont == 'y':
+            print("Merging files...")
+            
+            # concatenate all temporary csv files into a single csv file
+            # this uses the shutil.copyfileobj() function, which doesn't
+            # store the files in memory
+            full_path = os.path.join(path, f"{file_name}_elmo.csv")
+            with open(full_path, 'wb+') as file_out:
+                for i in it.count():
+                    if i % 100 == 0:
+                        print(f"{i} files merged...", end = "\r")
+                    try:
+                        full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
+                        with open(full_path, "rb") as file_in:
+                            shutil.copyfileobj(file_in, file_out)
+                    except IOError:
+                        break
 
-    print("All done with ELMo feature extraction!")
+            print("") # to deal with \r
+            print("Merge complete.")
+
+            # remove all the temporary batch files
+            print("Removing temporary files...")
+            for i in it.count():
+                try:
+                    full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
+                    os.remove(full_path)
+                except IOError:
+                    break
+            print("Removal complete.")
+
+        print("All done with ELMo feature extraction!")

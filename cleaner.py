@@ -6,24 +6,32 @@ import spacy as sp # used for lemmatising text
 import wget # downloading files
 import itertools as it # handling iterators like count()
 import shutil # enables copying data without using memory with copyfileobj()
+import warnings # allows suppression of warnings
+import csv # enables QUOTE_ALL to keep commas in lists when outputting
 
 def nan_if_empty(texts):
-    ''' Converts empty iterable to NaNs, making it easier to detect by pandas. '''
+    ''' Converts empty iterable to NaNs, making it easier to detect
+        by pandas. '''
+
     arr = np.asarray(texts)
     if arr.size == 0:
         return np.nan
     else:
-        return arr
+        return list(arr)
+
 
 def remove_non_cats(texts, cats):
-    ''' Removes every string in input which does not occur in the list of arXiv categories. '''
+    ''' Removes every string in input which does not occur in the
+        list of arXiv categories. '''
 
     return np.intersect1d(np.asarray(texts), cats)
+
 
 def str_to_arr(texts):
     ''' Converts a string to a numpy array. '''
 
     return np.asarray(re.sub('[\' \[\]]', '', texts).split(','))
+
 
 def clean_cats(texts, path = "data"):
     ''' Composition of nan_if_empty, remove_non_cats and str_to_arr. '''
@@ -79,13 +87,17 @@ def get_preclean_text(file_name, path = "data"):
 
     full_path = os.path.join(path, f"{file_name}.csv")
     clean_cats_with_path = lambda x: clean_cats(x, path = path)
-    df = pd.read_csv(full_path, usecols = ['title', 'abstract', 'category'])
+    df = pd.read_csv(
+        full_path, 
+        usecols = ['title', 'abstract', 'category'],
+        converters = {'category' : clean_cats_with_path}
+        )
 
-    print("Raw file loaded.")
+    print("Raw file loaded!")
     print("Precleaning raw file...")
 
     # drop rows with NaNs
-    df.dropna(inplace=True)
+    df.dropna(inplace = True)
 
     # merge title and abstract
     df['clean_text'] = df['title'] + ' ' + df['abstract']
@@ -93,7 +105,8 @@ def get_preclean_text(file_name, path = "data"):
 
     # remove punctuation marks
     punctuation ='\!\"\#\$\%\&\(\)\*\+\-\/\:\;\<\=\>\?\@\[\\\]\^\_\`\{\|\}\~'
-    df['clean_text'] = df['clean_text'].apply(lambda x: re.sub(punctuation, '', x))
+    df['clean_text'] = df['clean_text'].apply(lambda x: re.sub(punctuation,
+                                                               '', x))
 
     # convert text to lowercase
     df['clean_text'] = df['clean_text'].str.lower()
@@ -108,17 +121,19 @@ def get_preclean_text(file_name, path = "data"):
     full_path = os.path.join(path, f"{file_name}_preclean.csv")
     preclean_arr = np.asarray(df['clean_text'])
     np.savetxt(full_path, preclean_arr, fmt = '%s', encoding = 'utf-8')
-
+    
     # save dataframe with categories
     full_path = os.path.join(path, f"{file_name}_cats.csv")
-    df['category'].to_csv(full_path, index = False)
+    df['category'].to_csv(full_path, index = False, header = False,
+        quoting = csv.QUOTE_ALL)
 
     del df, preclean_arr
 
-    print("Preclean complete.")
+    print("Preclean complete!")
     
 
-def lemmatise_file(file_name, batch_size = 1000, path = "data", confirmation = True):
+def lemmatise_file(file_name, batch_size = 1000, path = "data",
+    confirmation = True):
     ''' Lemmatise file in batches, and save to csv. '''
 
     print("Cleaning precleaned file...")
@@ -129,25 +144,30 @@ def lemmatise_file(file_name, batch_size = 1000, path = "data", confirmation = T
         if not os.path.isfile(full_path):
             try:
                 full_path = os.path.join(path, f"{file_name}_preclean.csv")
-                batch = np.loadtxt(
-                    fname = full_path,
-                    delimiter = '\n',
-                    skiprows = i * batch_size,
-                    max_rows = batch_size,
-                    dtype = object
-                    )
+
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    batch = np.loadtxt(
+                        fname = full_path,
+                        delimiter = '\n',
+                        skiprows = i * batch_size,
+                        max_rows = batch_size,
+                        dtype = object
+                        )
              
                 batch_arr = np.asarray(
-                    [' '.join(np.asarray([token.lemma_ for token in nlp(text)]))
-                    for text in batch]
+                    [' '.join(np.asarray([token.lemma_ for 
+                        token in nlp(text)])) for text in batch]
                     )
                 
                 full_path = os.path.join(path, f'{file_name}_clean_{i}.csv')
                 np.savetxt(full_path, batch_arr, delimiter = ',', fmt = '%s')
+                
+                print(f"Cleaned {(i+1) * batch_size} papers...", end = "\r")
             except:
                 break
-        
-        print(f"Cleaned {(i+1) * batch_size} papers...", end = "\r")
+
+    print("Cleaning done!" + " " * 25)
     
     # ask user if they want to merge batches
     if confirmation:
@@ -169,18 +189,16 @@ def lemmatise_file(file_name, batch_size = 1000, path = "data", confirmation = T
         full_path = os.path.join(path, f"{file_name}_clean.csv")
         with open(full_path, 'wb+') as file_out:
             for i in it.count():
-                if i % 100 == 0:
+                if i % 100 == 0 and i > 0:
                     print(f"{i} files merged...", end = "\r")
                 try:
                     full_path = os.path.join(path, f"{file_name}_clean_{i}.csv")
                     with open(full_path, "rb") as file_in:
                         shutil.copyfileobj(file_in, file_out)
-                except Exception as e:
-                    print(f"Exception: {e}") # delete this later
+                except IOError:
                     break
         
-        print("") # to deal with \r
-        print("Merge complete.")
+        print("Merge complete!" + " " * 25)
         
         # remove all the temporary batch files
         print("Removing temporary files...")
@@ -188,8 +206,7 @@ def lemmatise_file(file_name, batch_size = 1000, path = "data", confirmation = T
             try:
                 full_path = os.path.join(path, f"{file_name}_clean_{i}.csv")
                 os.remove(full_path)
-            except Exception as e:
-                print(f"Exception: {e}") # delete this later
+            except IOError:
                 break
 
         # remove precleaned file as we have the fully cleaned one at this point
@@ -199,10 +216,8 @@ def lemmatise_file(file_name, batch_size = 1000, path = "data", confirmation = T
         except:
             pass
 
-        print("Removal complete.")
+        print("Removal complete!")
     
-    print("All done with cleaning!")
-
 
 def clean(file_name, lemm_batch_size = 1000, path = "data", confirmation = True):
     ''' Download and clean raw file. '''
