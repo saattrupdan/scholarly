@@ -181,6 +181,7 @@ def lemmatise_file(file_name, batch_size = 1000, path = "data",
             print("Please answer 'y' for yes or 'n' for no.")
     
     if cont == 'y':
+        print("") # deal with \r
         print("Merging files...")
 
         # concatenate all temporary csv files into a single csv file
