@@ -103,25 +103,30 @@ def initialise_params(layer_dims, init_method = 'he'):
     Initialise the parameters of the neural network.
     
     INPUT:
-    layer_dims -- numpy array containing the dimensions of each layer in our network
-    init_method -- string determining the type of initialisation; can be 'he' or 'xavier'
+    layer_dims -- numpy array containing the dimensions of each layer in
+        our network
+    init_method -- string determining the type of initialisation;
+        can be 'he' or 'xavier'
     
     OUTPUT:
     params -- python dictionary containing parameters
     """
     
     params = {}
-    L = len(layer_dims) # number of layers in the network, including the input layer
+
+    # number of layers in the network, including the input layer
+    L = len(layer_dims) 
 
     for l in range(1, L):
         if init_method == 'he':
-            params[f'W{l}'] = np.random.randn(layer_dims[l], layer_dims[l-1]) * \
-                np.sqrt(2 / layer_dims[l-1])
+            params[f'W{l}'] = np.random.randn(layer_dims[l],
+                layer_dims[l-1]) * np.sqrt(2 / layer_dims[l-1])
         elif init_method == 'xavier':
-            params[f'W{l}'] = np.random.randn(layer_dims[l], layer_dims[l-1]) * \
-                np.sqrt(1 / layer_dims[l-1])
+            params[f'W{l}'] = np.random.randn(layer_dims[l],
+                layer_dims[l-1]) * np.sqrt(1 / layer_dims[l-1])
         elif init_method == 'manual':
-            params[f'W{l}'] = np.random.randn(layer_dims[l], layer_dims[l-1]) * 0.0001
+            params[f'W{l}'] = np.random.randn(layer_dims[l],
+                layer_dims[l-1]) * 0.0001
         
         params[f'b{l}'] = np.zeros((layer_dims[l], 1))
         
@@ -158,13 +163,17 @@ def forward_step(A_prev, W, b, activation):
 
     INPUT:
     A_prev -- activations from previous layer: (size of previous layer, m)
-    W -- weights matrix: numpy array of shape (size of current layer, size of previous layer)
+    W -- weights matrix: numpy array of shape (size of current layer,
+        size of previous layer)
     b -- bias vector, numpy array of shape (size of the current layer, 1)
-    activation -- the activation to be used in this layer, stored as a text string
+    activation -- the activation to be used in this layer, stored as a
+        text string
 
     OUTPUT:
-    A -- the output of the activation function, also called the post-activation value 
-    cache -- a python dictionary containing W, b, Z and A_prev; used in back propagation
+    A -- the output of the activation function, also called the
+        post-activation value 
+    cache -- a python dictionary containing W, b, Z and A_prev;
+        used in back propagation
     """
 
     Z = np.dot(W, A_prev) + b
@@ -194,7 +203,8 @@ def forward_prop(X, params, activations = 'default'):
     INPUT:
     X -- data, numpy array of shape (input size, m)
     params -- output of initialise_params()
-    activations -- list of activation functions used; defaults to ReLU + sigmoid
+    activations -- list of activation functions used; defaults to 
+        ReLU + sigmoid
     
     OUTPUT:
     AL -- last post-activation value
@@ -226,14 +236,19 @@ def back_step(dA, cache, activation, cost_function = 'cross_entropy'):
     
     INPUT:
     dA -- post-activation gradient for current layer l 
-    cache -- a python dictionary containing W, b, Z and A_prev; used in back propagation
-    activation -- the activation to be used in this layer, stored as a text string
+    cache -- a python dictionary containing W, b, Z and A_prev;
+        used in back propagation
+    activation -- the activation to be used in this layer, stored as
+        a text string
     cost_function -- a string describing what cost function is used
     
     OUTPUT:
-    dA_prev -- Gradient of the cost with respect to the previous activation, same shape as A_prev
-    dW -- Gradient of the cost with respect to W (current layer l), same shape as W
-    db -- Gradient of the cost with respect to b (current layer l), same shape as b
+    dA_prev -- Gradient of the cost with respect to the previous activation,
+        same shape as A_prev
+    dW -- Gradient of the cost with respect to W (current layer l),
+        same shape as W
+    db -- Gradient of the cost with respect to b (current layer l),
+        same shape as b
     """
     A_prev = cache['A_prev']
     W = cache['W']
@@ -263,7 +278,8 @@ def back_step(dA, cache, activation, cost_function = 'cross_entropy'):
         
     return dA_prev, dW, db
 
-def back_prop(AL, Y, caches, activations = 'default', cost_function = 'cross_entropy'):
+def back_prop(AL, Y, caches, activations = 'default', 
+    cost_function = 'cross_entropy'):
     """
     Implement the backward propagation.
     
@@ -271,7 +287,8 @@ def back_prop(AL, Y, caches, activations = 'default', cost_function = 'cross_ent
     AL -- probability vector, output of forward_prop()
     Y -- true "label" vector
     caches -- list of dictionaries containing the W's, b's, Z's and A_prev's
-    activations -- list of activation functions used; defaults to ReLU + sigmoid
+    activations -- list of activation functions used; defaults to 
+        ReLU + sigmoid
     
     OUTPUT:
     grads -- A dictionary with the gradients
@@ -294,30 +311,34 @@ def back_prop(AL, Y, caches, activations = 'default', cost_function = 'cross_ent
     for l in reversed(range(L)):
         current_cache = caches[l]
         grads[f"dA{l}"], grads[f"dW{l+1}"], grads[f"db{l+1}"] = \
-            back_step(grads[f"dA{l+1}"], current_cache, activations[l], cost_function)
+            back_step(grads[f"dA{l+1}"], current_cache, activations[l], 
+            cost_function)
 
     return grads
 
 
 ##### BUILD MODEL #####
 
-def train_nn(X, Y, layer_dims, activations = 'default', cost_function = 'cross_entropy',
-             learning_rate = 0.0075, num_iterations = 3000, plot_cost = False):
+def train_nn(X, Y, layer_dims, activations = 'default', 
+    cost_function = 'cross_entropy', learning_rate = 0.0075,
+    num_iterations = 3000, plot_cost = False):
     """
     Trains a neural network.
     
     INPUT:
     X -- training data, of shape (n, m)
     Y -- true "label" vector, of shape (1, m)
-    layer_dims -- list with the input size and each layer size, of length (number of layers + 1)
-    activations -- list of activation functions used; defaults to ReLU + sigmoid
+    layer_dims -- list with the input size and each layer size, of length
+        (number of layers + 1)
+    activations -- list of activation functions used; defaults to 
+        ReLU + sigmoid
     cost_function -- a string describing what cost function is used
     learning_rate -- learning rate of the gradient descent update rule
     num_iterations -- number of iterations of the optimization loop
     plot_cost -- if True, it plots the cost
     
     OUTPUT:
-    params -- parameters learnt by the model. They can then be used to predict.
+    params -- parameters learnt by the model.
     """
 
     costs = []
@@ -336,7 +357,8 @@ def train_nn(X, Y, layer_dims, activations = 'default', cost_function = 'cross_e
             cost = l2_cost(AL, Y)
         costs.append(cost)
         
-        print(f"Performing gradient descent... {i+1} iterations completed.", end = "\r")
+        print(f"Performing gradient descent... {i+1} iterations completed.",
+            end = "\r")
         
     # plot the cost
     if plot_cost:
@@ -351,9 +373,10 @@ def train_nn(X, Y, layer_dims, activations = 'default', cost_function = 'cross_e
 
 class NeuralNetwork(TransformerMixin, BaseEstimator):
 
-    def __init__(self, layer_dims = [1], activations = 'default', init_method = 'he', 
-                 cost_function = 'cross_entropy', learning_rate= 0.0075, num_iterations = 3000, 
-                 plot_cost = False):
+    def __init__(self, layer_dims = [1], activations = 'default', 
+        init_method = 'he', cost_function = 'cross_entropy',
+        learning_rate= 0.0075, num_iterations = 3000, plot_cost = False):
+
         self.layer_dims_ = layer_dims
         self.activations_ = activations
         self.init_method_ = init_method
@@ -365,8 +388,9 @@ class NeuralNetwork(TransformerMixin, BaseEstimator):
     
     def fit(self, X, Y):
         self.layer_dims_ = [X.shape[0]] + self.layer_dims_
-        self.params_ = train_nn(X, Y, self.layer_dims_, self.activations_, self.cost_function_,
-                                self.learning_rate_, self.num_iterations_, self.plot_cost_)
+        self.params_ = train_nn(X, Y, self.layer_dims_, self.activations_,
+             self.cost_function_, self.learning_rate_, self.num_iterations_,
+             self.plot_cost_)
         return self
     
     def predict(self, X):

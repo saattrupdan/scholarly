@@ -5,24 +5,33 @@ import os
 
 from NN import NeuralNetwork
 
-nn_model = NeuralNetwork(
-    layer_dims = [256, 1],
-    activations = ['tanh', 'tanh', 'sigmoid'],
-    learning_rate = 0.01,
-    num_iterations = 100000,
-    plot_cost = True,
-    init_method = 'he'
-)
+def train_model(file_name, path = 'data', num_iterations = 25000,
+    plot_cost = True):
+    ''' Train homegrown neural network. '''
 
-home_dir = str(Path.home())
-file_name = "arxiv_sample_1000"
-data_path = os.path.join(home_dir, "pCloudDrive", "Public Folder", "scholarly_data")
-full_path = os.path.join(data_path, f"{file_name}_1hot_agg.csv")
+    nn_model = NeuralNetwork(
+        layer_dims = [1024, 512, 5],
+        activations = ['tanh', 'tanh', 'sigmoid'],
+        learning_rate = 0.0075,
+        num_iterations = num_iterations,
+        cost_function = 'cross_entropy',
+        plot_cost = plot_cost,
+        init_method = 'he'
+    )
 
-df_1hot_agg = pd.read_csv(full_path)
+    full_path = os.path.join(path, f"{file_name}_1hot_agg.csv")
+    df_1hot_agg = pd.read_csv(full_path)
 
-X = np.asarray(df_1hot_agg.iloc[:, :1024].T)
-y = np.asarray(df_1hot_agg.loc[:, 'physics'])
-y = y.reshape(1, y.size)
+    X = np.asarray(df_1hot_agg.iloc[:, :1024].T)
+    y = np.asarray(df_1hot_agg.iloc[:, :1024])
+    y = y.reshape(5, y.shape[0])
 
-nn_model.fit(X, y)
+    nn_model.fit(X, y)
+
+    return nn_model
+
+if __self__ == __main__:
+    file_name = 'arxiv_sample_1000'
+    path = os.path.join('/home', 'dn16382', 'pCloudDrive', 'Public Folder',
+        'scholarly_data')
+    train_model(file_name, path)
