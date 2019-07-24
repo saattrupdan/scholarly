@@ -61,9 +61,9 @@ def tanh(x, derivative = False):
 
 ##### COST FUNCTIONS #####
 
-def cross_entropy_cost(Yhat, Y):
+def binary_cross_entropy_cost(Yhat, Y):
     """
-    Implement the cross entropy cost function.
+    Implement the binary cross entropy cost function.
 
     INPUT:
     Yhat -- probability vector corresponding to label predictions, shape (1, m)
@@ -77,6 +77,23 @@ def cross_entropy_cost(Yhat, Y):
     
     m = Y.shape[1]
     return -1. / m * np.sum(Y * np.log(Yhat) + (1. - Y) * np.log(1. - Yhat))
+
+def cross_entropy_cost(Yhat, Y, c = 2):
+    """
+    Implement the cross entropy cost function with c classes.
+
+    INPUT:
+    Yhat -- probability vector corresponding to label predictions, shape (1, m)
+    Y -- true "label" vector, shape (c, m)
+
+    OUTPUT:
+    cost -- cross-entropy cost
+    """
+    
+    assert Yhat.shape == Y.shape
+
+    m = Y.shape[1]
+    return -1. / m * np.sum(Y * np.log(Yhat))
 
 def l2_cost(Yhat, Y):
     """
@@ -230,7 +247,7 @@ def forward_prop(X, params, activations = 'default'):
 
 ##### BACKWARD PROPAGATION #####
 
-def back_step(dA, cache, activation, cost_function = 'cross_entropy'):
+def back_step(dA, cache, activation, cost_function = 'binary_cross_entropy'):
     """
     Implement one step of the backward propagation.
     
@@ -265,7 +282,12 @@ def back_step(dA, cache, activation, cost_function = 'cross_entropy'):
     elif activation == 'tanh':
         dAct = tanh(Z, derivative = True)
     
-    if cost_function == 'cross_entropy':
+    if cost_function == 'binary_cross_entropy':
+        dZ = dA * dAct
+        dW = 1/m * np.dot(dZ, A_prev.T)
+        db = 1/m * np.sum(dZ, keepdims = True, axis = 1)
+        dA_prev = np.dot(W.T, dZ)
+    elif cost_function == 'cross_entropy': # not sure about this
         dZ = dA * dAct
         dW = 1/m * np.dot(dZ, A_prev.T)
         db = 1/m * np.sum(dZ, keepdims = True, axis = 1)
@@ -279,7 +301,7 @@ def back_step(dA, cache, activation, cost_function = 'cross_entropy'):
     return dA_prev, dW, db
 
 def back_prop(AL, Y, caches, activations = 'default', 
-    cost_function = 'cross_entropy'):
+    cost_function = 'binary_cross_entropy'):
     """
     Implement the backward propagation.
     
@@ -303,8 +325,10 @@ def back_prop(AL, Y, caches, activations = 'default',
         activations = ['relu'] * (L - 1) + ['sigmoid']
     
     # Initializing the backpropagation
-    if cost_function == 'cross_entropy':
+    if cost_function == 'binary_cross_entropy':
         grads[f"dA{L}"] = -(np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
+    elif cost_function == 'cross_entropy':
+        grads[f"dA{L}"] = -np.divide(Y, AL) # not sure about this
     elif cost_function == 'l2':
         grads[f"dA{L}"] = AL - Y
 
@@ -320,7 +344,7 @@ def back_prop(AL, Y, caches, activations = 'default',
 ##### BUILD MODEL #####
 
 def train_nn(X, Y, layer_dims, activations = 'default', 
-    cost_function = 'cross_entropy', learning_rate = 0.0075,
+    cost_function = 'binary_cross_entropy', learning_rate = 0.0075,
     num_iterations = 3000, plot_cost = False):
     """
     Trains a neural network.
@@ -350,14 +374,15 @@ def train_nn(X, Y, layer_dims, activations = 'default',
         grads = back_prop(AL, Y, caches, activations, cost_function)
         params = update_params(params, grads, learning_rate)
 
-        #if plot_cost and i % 100 == 0:
-        if cost_function == 'cross_entropy':
+        if cost_function == 'binary_cross_entropy':
+            cost = binary_cross_entropy_cost(AL, Y)
+        elif cost_function == 'cross_entropy':
             cost = cross_entropy_cost(AL, Y)
         elif cost_function == 'l2':
             cost = l2_cost(AL, Y)
         costs.append(cost)
         
-        print(f"Performing gradient descent... {i+1} iterations completed.",
+        print(f"Performing gradient descent... {i+1} iterations completed. Cost: {cost}.",
             end = "\r")
         
     # plot the cost
@@ -374,7 +399,7 @@ def train_nn(X, Y, layer_dims, activations = 'default',
 class NeuralNetwork(TransformerMixin, BaseEstimator):
 
     def __init__(self, layer_dims = [1], activations = 'default', 
-        init_method = 'he', cost_function = 'cross_entropy',
+        init_method = 'he', cost_function = 'binary_cross_entropy',
         learning_rate= 0.0075, num_iterations = 3000, plot_cost = False):
 
         self.layer_dims_ = layer_dims

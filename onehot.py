@@ -92,6 +92,6 @@ def one_hot_agg(file_name, path = 'data'):
 
         # save the one-hot encoded dataframe
         full_path = os.path.join(path, f"{file_name}_1hot_agg.csv")
-        df_1hot_agg.to_csv(full_path)
+        df_1hot_agg.to_csv(full_path, index = False)
 
         print(f"Saved the one-hot encoded dataframe.")
