@@ -78,22 +78,46 @@ def binary_cross_entropy_cost(Yhat, Y):
     m = Y.shape[1]
     return -1. / m * np.sum(Y * np.log(Yhat) + (1. - Y) * np.log(1. - Yhat))
 
-def cross_entropy_cost(Yhat, Y, c = 2):
+def multiclass_cross_entropy_cost(Yhat, Y):
     """
-    Implement the cross entropy cost function with c classes.
+    Implement the cross entropy cost function in a multiclass setup.
 
     INPUT:
-    Yhat -- probability vector corresponding to label predictions, shape (1, m)
+    Yhat -- probability vector corresponding to label predictions, shape (c, m)
     Y -- true "label" vector, shape (c, m)
 
     OUTPUT:
-    cost -- cross-entropy cost
+    cost -- multiclass cross-entropy cost
     """
     
     assert Yhat.shape == Y.shape
 
     m = Y.shape[1]
     return -1. / m * np.sum(Y * np.log(Yhat))
+
+def multilabel_cross_entropy_cost(Yhat, Y):
+    """
+    Implement the cross entropy cost function in a multilabel setup.
+
+    INPUT:
+    Yhat -- probability vector corresponding to label predictions, shape (c, m)
+    Y -- true "label" vector, shape (c, m)
+
+    OUTPUT:
+    cost -- multiclass cross-entropy cost
+    """
+    
+    assert Yhat.shape == Y.shape
+    
+    c = Y.shape[0]
+    m = Y.shape[1]
+
+    costs = np.zeros(c)
+    for i in np.arange(c):
+        costs[i] = -1. / (c * m) * np.sum(Y[i, :] * np.log(Yhat[i, :]) + 
+            (1. - Y[i,:]) * np.log(1. - Yhat[i, :]))
+
+    return np.sum(costs)
 
 def l2_cost(Yhat, Y):
     """
@@ -282,21 +306,11 @@ def back_step(dA, cache, activation, cost_function = 'binary_cross_entropy'):
     elif activation == 'tanh':
         dAct = tanh(Z, derivative = True)
     
-    if cost_function == 'binary_cross_entropy':
-        dZ = dA * dAct
-        dW = 1/m * np.dot(dZ, A_prev.T)
-        db = 1/m * np.sum(dZ, keepdims = True, axis = 1)
-        dA_prev = np.dot(W.T, dZ)
-    elif cost_function == 'cross_entropy': # not sure about this
-        dZ = dA * dAct
-        dW = 1/m * np.dot(dZ, A_prev.T)
-        db = 1/m * np.sum(dZ, keepdims = True, axis = 1)
-        dA_prev = np.dot(W.T, dZ)
-    elif cost_function == 'l2':
-        dZ = dA * dAct
-        dW = 1/m * np.dot(dZ, A_prev.T)
-        db = 1/m * np.sum(dZ, keepdims = True, axis = 1)
-        dA_prev = np.dot(W.T, dZ)
+    # not sure if these should be different from cost function to cost function 
+    dZ = dA * dAct
+    dW = 1/m * np.dot(dZ, A_prev.T)
+    db = 1/m * np.sum(dZ, keepdims = True, axis = 1)
+    dA_prev = np.dot(W.T, dZ)
         
     return dA_prev, dW, db
 
@@ -327,8 +341,10 @@ def back_prop(AL, Y, caches, activations = 'default',
     # Initializing the backpropagation
     if cost_function == 'binary_cross_entropy':
         grads[f"dA{L}"] = -(np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
-    elif cost_function == 'cross_entropy':
+    elif cost_function == 'multiclass_cross_entropy':
         grads[f"dA{L}"] = -np.divide(Y, AL) # not sure about this
+    elif cost_function == 'multilabel_cross_entropy':
+        grads[f"dA{L}"] = -(np.divide(Y, AL) - np.divide(1 - Y, 1 - AL)) # not sure about this
     elif cost_function == 'l2':
         grads[f"dA{L}"] = AL - Y
 
@@ -351,7 +367,7 @@ def train_nn(X, Y, layer_dims, activations = 'default',
     
     INPUT:
     X -- training data, of shape (n, m)
-    Y -- true "label" vector, of shape (1, m)
+    Y -- true "label" vector, of shape (output_layers, m)
     layer_dims -- list with the input size and each layer size, of length
         (number of layers + 1)
     activations -- list of activation functions used; defaults to 
@@ -376,13 +392,15 @@ def train_nn(X, Y, layer_dims, activations = 'default',
 
         if cost_function == 'binary_cross_entropy':
             cost = binary_cross_entropy_cost(AL, Y)
-        elif cost_function == 'cross_entropy':
-            cost = cross_entropy_cost(AL, Y)
+        elif cost_function == 'multiclass_cross_entropy':
+            cost = multiclass_cross_entropy_cost(AL, Y)
+        elif cost_function == 'multilabel_cross_entropy':
+            cost = multilabel_cross_entropy_cost(AL, Y)
         elif cost_function == 'l2':
             cost = l2_cost(AL, Y)
         costs.append(cost)
         
-        print(f"Performing gradient descent... {i+1} iterations completed. Cost: {cost}.",
+        print(f"Performing gradient descent... {i+1} iterations completed. Cost: {cost}",
             end = "\r")
         
     # plot the cost

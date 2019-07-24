@@ -16,7 +16,7 @@ def train_model(file_name, path = 'data', num_iterations = 25000,
         activations = ['tanh', 'sigmoid'],
         learning_rate = 0.0075,
         num_iterations = num_iterations,
-        cost_function = 'cross_entropy',
+        cost_function = 'multilabel_cross_entropy',
         plot_cost = plot_cost,
         init_method = 'he'
     )
