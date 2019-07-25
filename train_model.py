@@ -25,7 +25,7 @@ def train_model(file_name, path = 'data', num_iterations = 25000,
     df_1hot_agg = pd.read_csv(full_path)
 
     X = np.asarray(df_1hot_agg.iloc[:, :1024]).T
-    y = np.asarray(df_1hot_agg.iloc[:, 1025:]).T
+    y = np.asarray(df_1hot_agg.iloc[:, 1024:]).T
 
     nn_model.fit(X, y)
 
