@@ -323,7 +323,7 @@ def back_prop(AL, Y, caches, activations = 'default',
     # Initializing the backpropagation
     if cost_function == 'binary_cross_entropy':
         # prevent division by zero
-        if 0 in AL:
+        if 0 in AL or 1 in AL:
             grads[f"dA{L}"] = 0
         else:
             grads[f"dA{L}"] = -(np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
@@ -390,17 +390,23 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
         elif cost_function == 'l2':
             cost = l2_cost(AL, Y)
         
-        # if cost starts increasing or reaches 0 then rewind one step and stop
-        if early_stopping and not costs.size == 0 and \
-            (cost > costs[-1] or cost == 0):
+        # if cost stops to decrease or reaches 0 or NaN then rewind
+        # one step and stop
+        if not costs.size == 0:
+            if cost == 0 or np.isnan(cost):
+                params = old_params
+                print("") # deal with \r
+                print("Reached zero cost.")
+                break
+            elif early_stopping and cost >= costs[-1]:
                 params = old_params
                 print("") # deal with \r
                 print(f"Early stopping kicked in.")
                 break
-        else:
-            costs = np.append(costs, cost)
-            print(f"Performing batch gradient descent... {i+1} iterations" \
-                   f" completed. Cost: {cost}", end = "\r")
+
+        costs = np.append(costs, cost)
+        print(f"Performing batch gradient descent... {i+1} iterations" \
+               f" completed. Cost: {cost}", end = "\r")
     
     # deal with \r
     print("")
