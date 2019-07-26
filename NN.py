@@ -1,5 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt # for plotting cost
 from sklearn.base import BaseEstimator, TransformerMixin
 
 
@@ -63,10 +63,11 @@ def tanh(x, derivative = False):
 
 def binary_cross_entropy_cost(Yhat, Y):
     """
-    Implement the binary cross entropy cost function.
+    Implement the binary cross entropy cost function. Note that this
+    is also used for multilabel classification, in a "one vs rest" fashion.
 
     INPUT:
-    Yhat -- probability vector corresponding to label predictions, shape (1, m)
+    Yhat -- probability vector corresponding to predictions, shape (1, m)
     Y -- true "label" vector, shape (1, m)
 
     OUTPUT:
@@ -121,9 +122,9 @@ def initialise_params(layer_dims, init_method = 'he'):
     
     INPUT:
     layer_dims -- numpy array containing the dimensions of each layer in
-        our network
+                  our network
     init_method -- string determining the type of initialisation;
-        can be 'he' or 'xavier'
+                   can be 'he', 'xavier' or 'manual'
     
     OUTPUT:
     params -- python dictionary containing parameters
@@ -131,8 +132,8 @@ def initialise_params(layer_dims, init_method = 'he'):
     
     params = {}
 
-    # number of layers in the network, including the input layer
-    L = len(layer_dims) 
+    # the number of layers, including input layer
+    L = len(layer_dims)
 
     for l in range(1, L):
         if init_method == 'he':
@@ -162,7 +163,7 @@ def update_params(params, grads, learning_rate):
     params -- python dictionary containing your updated parameters 
     """
     
-    # number of layers in the neural network
+    # the number of layers, including input layer
     L = len(params) // 2 
     
     for l in range(L):
@@ -228,9 +229,11 @@ def forward_prop(X, params, activations = 'default'):
     caches -- list of caches containing every cache of forward_step()
     """
 
+    # the number of layers, including input layer
+    L = len(params) // 2
+
     caches = []
     A = X
-    L = len(params) // 2 # number of layers in the neural network
     
     if activations == 'default':
         activations = ['relu'] * (L - 1) + ['sigmoid']
@@ -282,7 +285,7 @@ def back_step(dA, cache, activation, cost_function = 'binary_cross_entropy'):
     elif activation == 'tanh':
         dAct = tanh(Z, derivative = True)
     
-    # not sure if these should be different from cost function to cost function 
+    # not sure if these should be different for multiclass cross entropy
     dZ = dA * dAct
     dW = 1/m * np.dot(dZ, A_prev.T)
     db = 1/m * np.sum(dZ, keepdims = True, axis = 1)
@@ -306,10 +309,12 @@ def back_prop(AL, Y, caches, activations = 'default',
     grads -- A dictionary with the gradients
     """
     
+    # the number of layers, including input layer
+    L = len(caches)
+
     grads = {}
-    L = len(caches) # the number of layers
     m = AL.shape[1]
-    Y = Y.reshape(AL.shape) # after this line, Y is the same shape as AL
+    Y = Y.reshape(AL.shape)
     
     if activations == 'default':
         activations = ['relu'] * (L - 1) + ['sigmoid']
@@ -343,29 +348,32 @@ def train_nn(X, Y, layer_dims, activations = 'default',
     X -- training data, of shape (n, m)
     Y -- true "label" vector, of shape (output_layers, m)
     layer_dims -- list with the input size and each layer size, of length
-        (number of layers + 1)
+                  (number of layers + 1)
     activations -- list of activation functions used; defaults to 
-        ReLU + sigmoid
+                   ReLU + sigmoid
     cost_function -- a string describing what cost function is used
     learning_rate -- learning rate of the gradient descent update rule
     num_iterations -- number of iterations of the optimization loop
     plot_cost -- if True, it plots the cost
+    early_stopping -- if True, stop training when cost starts increasing
     
     OUTPUT:
     params -- parameters learnt by the model.
     """
 
-    costs = []
-    params = initialise_params(layer_dims)
+    costs = np.asarray([])
     
-    # Loop (gradient descent)
+    # batch gradient descent loop
     for i in range(num_iterations):
+        # save old parameters in case early stopping kicks in
         old_params = params
         
+        # forwardprop + backprop
         AL, caches = forward_prop(X, params, activations)
         grads = back_prop(AL, Y, caches, activations, cost_function)
         params = update_params(params, grads, learning_rate)
-
+        
+        # compute cost
         if cost_function == 'binary_cross_entropy':
             cost = binary_cross_entropy_cost(AL, Y)
         elif cost_function == 'multiclass_cross_entropy':
@@ -373,16 +381,17 @@ def train_nn(X, Y, layer_dims, activations = 'default',
         elif cost_function == 'l2':
             cost = l2_cost(AL, Y)
         
-        # if cost starts increasing, rewind one step and stop
-        if early_stopping and not costs == [] and \
+        # if cost starts increasing or NaNs start appearing then
+        # rewind one step and stop
+        if early_stopping and not costs.size == 0 and \
             (cost > costs[-1] or np.isnan(cost)):
                 params = old_params
                 print("") # deal with \r
                 print(f"Early stopping kicked in.")
                 break
-        else:
-            costs.append(cost)
-            print(f"Performing gradient descent... {i+1} iterations" \
+        else::
+            costs = np.append(costs, cost)
+            print(f"Performing batch gradient descent... {i+1} iterations" \
                    f" completed. Cost: {cost}", end = "\r")
     
     # deal with \r
@@ -416,8 +425,13 @@ class NeuralNetwork(TransformerMixin, BaseEstimator):
         self.early_stopping_ = early_stopping
         self.params_ = None
     
-    def fit(self, X, Y):
+    # add input layer and initialise params
+    def fit(self, X):
         self.layer_dims_ = [X.shape[0]] + self.layer_dims_
+        self.params_ = initialise_params(self.layer_dims_)
+        return self
+
+    def train(self, X, Y):
         self.params_ = train_nn(X, Y, self.layer_dims_, self.activations_,
              self.cost_function_, self.learning_rate_, self.num_iterations_,
              self.plot_cost_, self.early_stopping_)
