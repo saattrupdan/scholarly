@@ -27,11 +27,11 @@ learning_rate = 0.005
 old_weights = None
 
 # load weights from a pre-trained model    
-#full_path = os.path.join(data_path,
-#    f"arxiv_sample_1000_model_25000_0.005.pickle")
-#with open(full_path, 'rb') as pickle_in:
-#    nn_model = pickle.load(pickle_in)
-#    old_weights = nn_model.params_
+full_path = os.path.join(data_path,
+    f"arxiv_sample_1000_model_25000_0.005.pickle")
+with open(full_path, 'rb') as pickle_in:
+    nn_model = pickle.load(pickle_in)
+    old_weights = nn_model.params_
     
 for file_name in file_names:
     print("------------------------------------")
