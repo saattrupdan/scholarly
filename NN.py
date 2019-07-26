@@ -335,7 +335,7 @@ def back_prop(AL, Y, caches, activations = 'default',
 
 def train_nn(X, Y, layer_dims, activations = 'default', 
     cost_function = 'binary_cross_entropy', learning_rate = 0.0075,
-    num_iterations = 3000, plot_cost = False):
+    num_iterations = 3000, plot_cost = False, early_stopping = True):
     """
     Trains a neural network.
     
@@ -359,7 +359,9 @@ def train_nn(X, Y, layer_dims, activations = 'default',
     params = initialise_params(layer_dims)
     
     # Loop (gradient descent)
-    for i in range(0, num_iterations):
+    for i in range(num_iterations):
+        old_params = params
+        
         AL, caches = forward_prop(X, params, activations)
         grads = back_prop(AL, Y, caches, activations, cost_function)
         params = update_params(params, grads, learning_rate)
@@ -370,10 +372,21 @@ def train_nn(X, Y, layer_dims, activations = 'default',
             cost = multiclass_cross_entropy_cost(AL, Y)
         elif cost_function == 'l2':
             cost = l2_cost(AL, Y)
-        costs.append(cost)
         
-        print(f"Performing gradient descent... {i+1} iterations completed. Cost: {cost}",
-            end = "\r")
+        # if cost starts increasing, rewind one step and stop
+        if early_stopping and not costs == [] and \
+            (cost > costs[-1] or np.isnan(cost)):
+                params = old_params
+                print("") # deal with \r
+                print(f"Early stopping kicked in.")
+                break
+        else:
+            costs.append(cost)
+            print(f"Performing gradient descent... {i+1} iterations" \
+                   f" completed. Cost: {cost}", end = "\r")
+    
+    # deal with \r
+    print("")
         
     # plot the cost
     if plot_cost:
@@ -390,7 +403,8 @@ class NeuralNetwork(TransformerMixin, BaseEstimator):
 
     def __init__(self, layer_dims = [1], activations = 'default', 
         init_method = 'he', cost_function = 'binary_cross_entropy',
-        learning_rate= 0.0075, num_iterations = 3000, plot_cost = False):
+        learning_rate= 0.0075, num_iterations = 3000, plot_cost = False,
+        early_stopping = True):
 
         self.layer_dims_ = layer_dims
         self.activations_ = activations
@@ -399,13 +413,14 @@ class NeuralNetwork(TransformerMixin, BaseEstimator):
         self.learning_rate_ = learning_rate
         self.num_iterations_ = num_iterations
         self.plot_cost_ = plot_cost
+        self.early_stopping_ = early_stopping
         self.params_ = None
     
     def fit(self, X, Y):
         self.layer_dims_ = [X.shape[0]] + self.layer_dims_
         self.params_ = train_nn(X, Y, self.layer_dims_, self.activations_,
              self.cost_function_, self.learning_rate_, self.num_iterations_,
-             self.plot_cost_)
+             self.plot_cost_, self.early_stopping_)
         return self
     
     def predict(self, X):
