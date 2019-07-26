@@ -349,7 +349,8 @@ def back_prop(AL, Y, caches, activations = 'default',
 
 def train_nn(X, Y, layer_dims, params, activations = 'default', 
     cost_function = 'binary_cross_entropy', learning_rate = 0.0075,
-    num_iterations = 3000, plot_cost = False, early_stopping = True):
+    num_iterations = 3000, plot_cost = False, early_stopping = True,
+    target_cost = 0.05):
     """
     Trains a neural network.
     
@@ -365,6 +366,7 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
     num_iterations -- number of iterations of the optimization loop
     plot_cost -- if True, it plots the cost
     early_stopping -- if True, stop training when cost starts increasing
+    target_cost -- stop gradient descent when cost is below this number
     
     OUTPUT:
     params -- parameters learnt by the model.
@@ -390,23 +392,22 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
         elif cost_function == 'l2':
             cost = l2_cost(AL, Y)
         
-        # if cost stops to decrease or reaches 0 or NaN then rewind
-        # one step and stop
-        if not costs.size == 0:
-            if cost == 0 or np.isnan(cost):
-                params = old_params
-                print("") # deal with \r
-                print("Reached zero cost.")
-                break
-            elif early_stopping and cost >= costs[-1]:
-                params = old_params
-                print("") # deal with \r
-                print(f"Early stopping kicked in.")
-                break
+        # if cost stops to decrease then rewind one step and stop
+        if not costs.size == 0 and early_stopping and cost >= costs[-1]:
+            params = old_params
+            print("") # deal with \r
+            print(f"Early stopping kicked in.")
+            break
 
         costs = np.append(costs, cost)
         print(f"Performing batch gradient descent... {i+1} iterations" \
                f" completed. Cost: {cost}", end = "\r")
+
+        # if target cost is reached then stop
+        if cost < target_cost:
+            print("") # deal with \r
+            print("Reached target cost.")
+            break
     
     # deal with \r
     print("")
