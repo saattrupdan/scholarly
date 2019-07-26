@@ -25,6 +25,13 @@ data_path = os.path.join(home_dir, "pCloudDrive", "Public Folder",
 iterations = 100000
 learning_rate = 0.005
 old_weights = None
+
+# load weights from a pre-trained model    
+#full_path = os.path.join(data_path,
+#    f"arxiv_sample_1000_model_25000_0.005.pickle")
+#with open(full_path, 'rb') as pickle_in:
+#    nn_model = pickle.load(pickle_in)
+#    old_weights = nn_model.params_
     
 for file_name in file_names:
     print("------------------------------------")
@@ -32,8 +39,10 @@ for file_name in file_names:
     print("------------------------------------")
 
     full_path = os.path.join(data_path,
-        f"{file_name}_model_{iterations}_{learning_rate}.csv")
+        f"{file_name}_model_{iterations}_{learning_rate}.pickle")
     if os.path.isfile(full_path):
+        with open(full_path, 'rb') as pickle_in:
+            nn_model = pickle.load(pickle_in)
         print("Model already trained.")
     else:
         # time training for good measure
@@ -65,9 +74,6 @@ for file_name in file_names:
         # train the neural network
         nn_model.train(X, y)
         
-        # save the weights for transfer learning
-        old_weights = nn_model_params_
-        
         # save model
         full_path = os.path.join(data_path,
             f'{file_name}_model_{iterations}_{learning_rate}.pickle')
@@ -75,18 +81,15 @@ for file_name in file_names:
             pickle.dump(nn_model, pickle_out)
 
         # calculate training accuracy
-        yhat = np.squeeze(np.around(nn_model.predict(X), decimals = 0)).T
+        yhat = np.squeeze(np.around(nn_model.predict(X), decimals = 0))
         yhat = yhat.astype('int')
         correct_predictions = np.sum(np.asarray(
-            [reduce(lambda z, w: z and w, x) for x in y == yhat]))
+            [reduce(lambda z, w: z and w, x) for x in np.equal(y.T, yhat.T)]))
         train_accuracy = correct_predictions / X.shape[1]
-        
-        #correct_predictions = 0
-        #for i in np.arange(X.shape[1]):
-        #    if (y == yhat).all():
-        #        correct_predictions += 1
-        #train_accuracy = correct_predictions / X.shape[1]
-    
+
         print("Training complete!")
-        print(f"Training accuracy: {accuracy}")
+        print(f"Training accuracy: {train_accuracy}")
         print(f"Time spent: {datetime.now() - start_time}")
+
+    # save the weights for transfer learning
+    old_weights = nn_model.params_

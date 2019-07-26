@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt # for plotting cost
 from sklearn.base import BaseEstimator, TransformerMixin
+import warnings # allows suppression of warnings
 
 
 ##### ACTIVATION FUNCTIONS #####
@@ -219,7 +220,7 @@ def forward_prop(X, params, activations = 'default'):
     Implement the forward propagation.
     
     INPUT:
-    X -- data, numpy array of shape (input size, m)
+    X -- data, numpy array of shape (n, m)
     params -- output of initialise_params()
     activations -- list of activation functions used; defaults to 
         ReLU + sigmoid
@@ -321,9 +322,17 @@ def back_prop(AL, Y, caches, activations = 'default',
     
     # Initializing the backpropagation
     if cost_function == 'binary_cross_entropy':
-        grads[f"dA{L}"] = -(np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
+        # prevent division by zero
+        if 0 in AL:
+            grads[f"dA{L}"] = 0
+        else:
+            grads[f"dA{L}"] = -(np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
     elif cost_function == 'multiclass_cross_entropy':
-        grads[f"dA{L}"] = -np.divide(Y, AL) # not sure about this
+        # prevent division by zero
+        if 0 in AL:
+            grads[f"dA{L}"] = 0
+        else:
+            grads[f"dA{L}"] = -np.divide(Y, AL) # not sure about this
     elif cost_function == 'l2':
         grads[f"dA{L}"] = AL - Y
 
@@ -338,7 +347,7 @@ def back_prop(AL, Y, caches, activations = 'default',
 
 ##### BUILD MODEL #####
 
-def train_nn(X, Y, layer_dims, activations = 'default', 
+def train_nn(X, Y, layer_dims, params, activations = 'default', 
     cost_function = 'binary_cross_entropy', learning_rate = 0.0075,
     num_iterations = 3000, plot_cost = False, early_stopping = True):
     """
@@ -381,15 +390,14 @@ def train_nn(X, Y, layer_dims, activations = 'default',
         elif cost_function == 'l2':
             cost = l2_cost(AL, Y)
         
-        # if cost starts increasing or NaNs start appearing then
-        # rewind one step and stop
+        # if cost starts increasing or reaches 0 then rewind one step and stop
         if early_stopping and not costs.size == 0 and \
-            (cost > costs[-1] or np.isnan(cost)):
+            (cost > costs[-1] or cost == 0):
                 params = old_params
                 print("") # deal with \r
                 print(f"Early stopping kicked in.")
                 break
-        else::
+        else:
             costs = np.append(costs, cost)
             print(f"Performing batch gradient descent... {i+1} iterations" \
                    f" completed. Cost: {cost}", end = "\r")
@@ -432,12 +440,11 @@ class NeuralNetwork(TransformerMixin, BaseEstimator):
         return self
 
     def train(self, X, Y):
-        self.params_ = train_nn(X, Y, self.layer_dims_, self.activations_,
-             self.cost_function_, self.learning_rate_, self.num_iterations_,
-             self.plot_cost_, self.early_stopping_)
+        self.params_ = train_nn(X, Y, self.layer_dims_, self.params_, 
+            self.activations_, self.cost_function_, self.learning_rate_,
+            self.num_iterations_, self.plot_cost_, self.early_stopping_)
         return self
     
     def predict(self, X):
-        X = np.asarray(X).reshape(self.layer_dims_[0], -1)
         Yhat, _ = forward_prop(X, self.params_, self.activations_)
         return Yhat
