@@ -54,7 +54,7 @@ def extract(file_name, path = "data", batch_size = 10,
         print("File already ELMo'd.")
     else:
         # load the ELMo model
-        model = hub.Module("elmo", trainable = True)
+        model = hub.Module("elmo", trainable = False)
                 
         print("Extracting ELMo features...")
         

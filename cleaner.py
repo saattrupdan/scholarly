@@ -112,7 +112,7 @@ def get_preclean_text(file_name, path = "data"):
     df['clean_text'] = df['clean_text'].str.lower()
 
     # remove numbers
-    df['clean_text'] = df['clean_text'].str.replace("[0-9]", " ")
+    df['clean_text'] = df['clean_text'].str.replace("[0-9]", "")
     
     # remove whitespaces
     df['clean_text'] = df['clean_text'].apply(lambda x:' '.join(x.split()))
@@ -210,7 +210,7 @@ def lemmatise_file(file_name, batch_size = 1000, path = "data",
             except IOError:
                 break
 
-        # remove precleaned file as we have the fully cleaned one at this point
+        # remove precleaned file as we have the fully cleaned one
         try:
             full_path = os.path.join(path, f"{file_name}_preclean.csv")
             os.remove(full_path)
@@ -220,7 +220,8 @@ def lemmatise_file(file_name, batch_size = 1000, path = "data",
         print("Removal complete!")
     
 
-def clean(file_name, lemm_batch_size = 1000, path = "data", confirmation = True):
+def clean(file_name, lemm_batch_size = 1000, path = "data",
+    confirmation = True):
     ''' Download and clean raw file. '''
 
     full_path = os.path.join(path, f"{file_name}_clean.csv")
