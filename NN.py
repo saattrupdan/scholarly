@@ -68,8 +68,8 @@ def binary_cross_entropy_cost(Yhat, Y):
     is also used for multilabel classification, in a "one vs rest" fashion.
 
     INPUT:
-    Yhat -- probability vector corresponding to predictions, shape (1, m)
-    Y -- true "label" vector, shape (1, m)
+    Yhat -- probability vector corresponding to predictions, shape (output_layer, m)
+    Y -- true "label" vector, shape (output_layer, m)
 
     OUTPUT:
     cost -- cross-entropy cost
@@ -78,6 +78,16 @@ def binary_cross_entropy_cost(Yhat, Y):
     assert Yhat.shape == Y.shape
     
     m = Y.shape[1]
+    
+    # avoid taking log of zero
+    if 0 in Yhat:
+        Yhat += 0.000001
+    elif 1 in Yhat:
+        Yhat -= 0.000001
+    
+    # if we somehow encountered negative values, flip the sign
+    Yhat = np.abs(Yhat)
+
     return -1. / m * np.sum(Y * np.log(Yhat) + (1. - Y) * np.log(1. - Yhat))
 
 def multiclass_cross_entropy_cost(Yhat, Y):
@@ -320,19 +330,20 @@ def back_prop(AL, Y, caches, activations = 'default',
     if activations == 'default':
         activations = ['relu'] * (L - 1) + ['sigmoid']
     
+    # avoid taking log of zero
+    if 0 in AL:
+        AL += 0.000001
+    elif 1 in AL:
+        AL -= 0.000001
+
+    # if we somehow encountered negative values, flip the sign
+    AL = np.abs(AL)
+
     # Initializing the backpropagation
     if cost_function == 'binary_cross_entropy':
-        # prevent division by zero
-        if 0 in AL or 1 in AL:
-            grads[f"dA{L}"] = 0
-        else:
-            grads[f"dA{L}"] = -(np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
+        grads[f"dA{L}"] = -(np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
     elif cost_function == 'multiclass_cross_entropy':
-        # prevent division by zero
-        if 0 in AL:
-            grads[f"dA{L}"] = 0
-        else:
-            grads[f"dA{L}"] = -np.divide(Y, AL) # not sure about this
+        grads[f"dA{L}"] = -np.divide(Y, AL) # not sure about this
     elif cost_function == 'l2':
         grads[f"dA{L}"] = AL - Y
 
@@ -393,7 +404,7 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
             cost = l2_cost(AL, Y)
         
         # if cost stops to decrease then rewind one step and stop
-        if not costs.size == 0 and early_stopping and cost >= costs[-1]:
+        if not costs.size == 0 and early_stopping and cost > costs[-1]:
             params = old_params
             print("") # deal with \r
             print(f"Early stopping kicked in.")
