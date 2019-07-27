@@ -26,23 +26,17 @@ iterations = 100000
 learning_rate = 0.005
 old_weights = None
 
-# load weights from a pre-trained model    
-full_path = os.path.join(data_path,
-    f"arxiv_sample_1000_model_25000_0.005.pickle")
-with open(full_path, 'rb') as pickle_in:
-    nn_model = pickle.load(pickle_in)
-    old_weights = nn_model.params_
-    
 for file_name in file_names:
     print("------------------------------------")
     print(f"NOW PROCESSING: {file_name}")
     print("------------------------------------")
 
     full_path = os.path.join(data_path,
-        f"{file_name}_model_{iterations}_{learning_rate}.pickle")
+        f"{file_name}_model.pickle")
     if os.path.isfile(full_path):
         with open(full_path, 'rb') as pickle_in:
             nn_model = pickle.load(pickle_in)
+            old_weights = nn_model.params_
         print("Model already trained.")
     else:
         # time training for good measure
@@ -68,15 +62,15 @@ for file_name in file_names:
         nn_model.fit(X)
 
         # transfer old weights to new model, if applicable
-        if old_weights:
-            nn_model.params_ = old_weights
+        #if old_weights:
+        #    nn_model.params_ = old_weights
 
         # train the neural network
         nn_model.train(X, y)
         
         # save model
         full_path = os.path.join(data_path,
-            f'{file_name}_model_{iterations}_{learning_rate}.pickle')
+            f'{file_name}_model.pickle')
         with open(full_path, 'wb') as pickle_out:
             pickle.dump(nn_model, pickle_out)
 
