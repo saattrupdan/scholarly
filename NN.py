@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt # for plotting cost
 from sklearn.base import BaseEstimator, TransformerMixin
 import warnings # allows suppression of warnings
+import itertools as it # enables count()
 
 
 ##### ACTIVATION FUNCTIONS #####
@@ -103,6 +104,13 @@ def multiclass_cross_entropy_cost(Yhat, Y):
     """
     
     assert Yhat.shape == Y.shape
+    
+    # avoid taking log of zero
+    if 0 in Yhat:
+        Yhat += 0.000001
+    
+    # if we somehow encountered negative values, flip the sign
+    Yhat = np.abs(Yhat)
 
     m = Y.shape[1]
     return -1. / m * np.sum(Y * np.log(Yhat))
@@ -146,7 +154,7 @@ def initialise_params(layer_dims, init_method = 'he'):
     # the number of layers, including input layer
     L = len(layer_dims)
 
-    for l in range(1, L):
+    for l in np.arange(1, L):
         if init_method == 'he':
             params[f'W{l}'] = np.random.randn(layer_dims[l],
                 layer_dims[l-1]) * np.sqrt(2 / layer_dims[l-1])
@@ -177,7 +185,7 @@ def update_params(params, grads, learning_rate):
     # the number of layers, including input layer
     L = len(params) // 2 
     
-    for l in range(L):
+    for l in np.arange(L):
         params[f'W{l+1}'] -= learning_rate * grads[f'dW{l+1}']
         params[f'b{l+1}'] -= learning_rate * grads[f'db{l+1}']
         
@@ -249,7 +257,7 @@ def forward_prop(X, params, activations = 'default'):
     if activations == 'default':
         activations = ['relu'] * (L - 1) + ['sigmoid']
     
-    for l in range(L):
+    for l in np.arange(L):
         A_prev = np.copy(A)
         W = params[f"W{l+1}"]
         b = params[f"b{l+1}"]
@@ -359,9 +367,9 @@ def back_prop(AL, Y, caches, activations = 'default',
 ##### BUILD MODEL #####
 
 def train_nn(X, Y, layer_dims, params, activations = 'default', 
-    cost_function = 'binary_cross_entropy', learning_rate = 0.0075,
-    num_iterations = 3000, plot_cost = False, early_stopping = True,
-    target_cost = 0.05):
+    cost_function = 'binary_cross_entropy', init_learning_rate = 1.0,
+    plot_cost = False, adaptive_learning = 0.05,
+    target_cost = 0.1, min_learning_rate = 0.001):
     """
     Trains a neural network.
     
@@ -373,22 +381,33 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
     activations -- list of activation functions used; defaults to 
                    ReLU + sigmoid
     cost_function -- a string describing what cost function is used
-    learning_rate -- learning rate of the gradient descent update rule
-    num_iterations -- number of iterations of the optimization loop
+    init_learning_rate -- initial learning rate of the gradient descent
     plot_cost -- if True, it plots the cost
-    early_stopping -- if True, stop training when cost starts increasing
+    adaptive_learning -- gradually lower learning rate when cost starts 
+                         increasing, if it's nonzero. Must be strictly 
+                         between 0 and 1
     target_cost -- stop gradient descent when cost is below this number
+    min_learning_rate -- minimal allowed learning rate
     
     OUTPUT:
     params -- parameters learnt by the model.
     """
 
     costs = np.asarray([])
+    confidence = 0
+    learning_rate = init_learning_rate
     
-    # batch gradient descent loop
-    for i in range(num_iterations):
-        # save old parameters in case early stopping kicks in
-        old_params = params
+    print(f"Performing batch gradient descent...", end = "\r")
+    for i in it.count():
+        # save old parameters
+        if i > 0:
+            old_params = params
+            old_cost = cost
+        
+        # if the model is sufficiently confident then increase
+        # the learning rate
+        if adaptive_learning and confidence:
+            learning_rate /= 1 - (adaptive_learning * (confidence / 10))
         
         # forwardprop + backprop
         AL, caches = forward_prop(X, params, activations)
@@ -402,33 +421,50 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
             cost = multiclass_cross_entropy_cost(AL, Y)
         elif cost_function == 'l2':
             cost = l2_cost(AL, Y)
-        
-        # if cost stops to decrease then rewind one step and stop
-        if not costs.size == 0 and early_stopping and cost > costs[-1]:
-            params = old_params
-            print("") # deal with \r
-            print(f"Early stopping kicked in.")
-            break
-
-        costs = np.append(costs, cost)
-        print(f"Performing batch gradient descent... {i+1} iterations" \
-               f" completed. Cost: {cost}", end = "\r")
 
         # if target cost is reached then stop
         if cost < target_cost:
             print("") # deal with \r
-            print("Reached target cost.")
+            print(f"Reached target cost, ending at {np.around(cost, 5)}.")
             break
-    
-    # deal with \r
-    print("")
+        
+        # if cost starts to increase then rewind one step
+        # and lower the learning rate
+        if adaptive_learning and i > 0 and cost > old_cost:
+            params = old_params
+            cost = old_cost
+
+            if confidence:
+                learning_rate *= 1 - (adaptive_learning * (confidence / 10))
+            else:
+                learning_rate *= 1 - adaptive_learning
+            
+            confidence = 0
+
+            if learning_rate < min_learning_rate:
+                print("")
+                print("Minimal learning rate reached.")
+                break
+        
+        if (i+1) % 100 == 0:
+            print(f"Performing batch gradient descent... " \
+                  f"{i+1} iterations completed. " \
+                  f"Learning rate: {np.around(learning_rate, 3)}. " \
+                  f"Cost: {np.around(cost, 5)} " + " " * 25
+                  , end = "\r")
+
+            if plot_cost:
+                costs = np.append(costs, cost)
+
+            # give the model some confidence
+            confidence += 1
         
     # plot the cost
     if plot_cost:
         plt.plot(np.squeeze(costs))
         plt.ylabel('cost')
-        plt.xlabel('iterations')
-        plt.title(f"Learning rate = {learning_rate}")
+        plt.xlabel('iterations (hundreds)')
+        plt.title(f"Learning rate = {np.around(learning_rate, 3)}")
         plt.show()
     
     return params
@@ -438,17 +474,19 @@ class NeuralNetwork(TransformerMixin, BaseEstimator):
 
     def __init__(self, layer_dims = [1], activations = 'default', 
         init_method = 'he', cost_function = 'binary_cross_entropy',
-        learning_rate= 0.0075, num_iterations = 3000, plot_cost = False,
-        early_stopping = True):
+        init_learning_rate = 1.0, plot_cost = False,
+        adaptive_learning = 0.05, target_cost = 0.3,
+        min_learning_rate = 0.001):
 
         self.layer_dims_ = layer_dims
         self.activations_ = activations
         self.init_method_ = init_method
         self.cost_function_ = cost_function
-        self.learning_rate_ = learning_rate
-        self.num_iterations_ = num_iterations
+        self.target_cost_ = target_cost
         self.plot_cost_ = plot_cost
-        self.early_stopping_ = early_stopping
+        self.init_learning_rate_ = init_learning_rate
+        self.min_learning_rate_ = min_learning_rate
+        self.adaptive_learning_ = adaptive_learning 
         self.params_ = None
     
     # add input layer and initialise params
@@ -458,9 +496,19 @@ class NeuralNetwork(TransformerMixin, BaseEstimator):
         return self
 
     def train(self, X, Y):
-        self.params_ = train_nn(X, Y, self.layer_dims_, self.params_, 
-            self.activations_, self.cost_function_, self.learning_rate_,
-            self.num_iterations_, self.plot_cost_, self.early_stopping_)
+        self.params_ = train_nn(
+            X = X,
+            Y = Y, 
+            layer_dims = self.layer_dims_,
+            params = self.params_,
+            activations = self.activations_, 
+            cost_function = self.cost_function_, 
+            target_cost = self.target_cost_, 
+            plot_cost = self.plot_cost_, 
+            init_learning_rate = self.init_learning_rate_,
+            min_learning_rate = self.min_learning_rate_,
+            adaptive_learning = self.adaptive_learning_
+            )
         return self
     
     def predict(self, X):

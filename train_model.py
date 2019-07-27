@@ -21,11 +21,6 @@ home_dir = str(Path.home())
 data_path = os.path.join(home_dir, "pCloudDrive", "Public Folder",
     "scholarly_data")
 
-# some neural network hyperparameters
-iterations = 100000
-learning_rate = 0.005
-old_weights = None
-
 for file_name in file_names:
     print("------------------------------------")
     print(f"NOW PROCESSING: {file_name}")
@@ -41,6 +36,12 @@ for file_name in file_names:
     else:
         # time training for good measure
         start_time = datetime.now()
+
+        # build homegrown neural network
+        nn_model = NeuralNetwork(
+            layer_dims = [150, 5], # this should maybe be variable
+            activations = ['tanh', 'sigmoid']
+            )
         
         # fetch data
         full_path = os.path.join(data_path, f"{file_name}_1hot_agg.csv")
@@ -48,22 +49,11 @@ for file_name in file_names:
         X = np.asarray(df_1hot_agg.iloc[:, :1024]).T
         y = np.asarray(df_1hot_agg.iloc[:, 1024:]).T
         
-        # build homegrown neural network
-        nn_model = NeuralNetwork(
-            layer_dims = [750, 500, 5],
-            activations = ['tanh', 'tanh', 'sigmoid'],
-            early_stopping = True,
-            plot_cost = False,
-            num_iterations = iterations,
-            learning_rate = learning_rate
-            )
+        # train/test split, for calculating test scores 
+        #Xtrain, ytrain, Xtest, ytest = 
         
         # fit the neural network to X and initialise params
         nn_model.fit(X)
-
-        # transfer old weights to new model, if applicable
-        #if old_weights:
-        #    nn_model.params_ = old_weights
 
         # train the neural network
         nn_model.train(X, y)
@@ -84,6 +74,3 @@ for file_name in file_names:
         print("Training complete!")
         print(f"Training accuracy: {train_accuracy}")
         print(f"Time spent: {datetime.now() - start_time}")
-
-    # save the weights for transfer learning
-    old_weights = nn_model.params_
