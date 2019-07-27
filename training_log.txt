@@ -37,7 +37,7 @@
   accuracy     =  94.5%
   time         =  ~2h27m
 
-150 hidden neurons:
-  target cost  =  
+150 hidden neurons, with accumulated confidence:
+  target cost  =  0.30
   accuracy     =  
   time         =  

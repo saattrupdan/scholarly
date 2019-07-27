@@ -404,10 +404,13 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
             old_params = params
             old_cost = cost
         
+        # give the model some confidence
+        confidence += 1
+        
         # if the model is sufficiently confident then increase
         # the learning rate
-        if adaptive_learning and confidence:
-            learning_rate /= 1 - (adaptive_learning * (confidence / 10))
+        if adaptive_learning and confidence % 100 == 0:
+            learning_rate /= 1 - (adaptive_learning * (confidence / 1000))
         
         # forwardprop + backprop
         AL, caches = forward_prop(X, params, activations)
@@ -434,12 +437,12 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
             params = old_params
             cost = old_cost
 
-            if confidence:
-                learning_rate *= 1 - (adaptive_learning * (confidence / 10))
+            if confidence >= 100:
+                learning_rate *= 1 - (adaptive_learning * (confidence / 1000))
+                confidence -= 100
             else:
                 learning_rate *= 1 - adaptive_learning
-            
-            confidence = 0
+                confidence = 0
 
             if learning_rate < min_learning_rate:
                 print("")
@@ -450,14 +453,12 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
             print(f"Performing batch gradient descent... " \
                   f"{i+1} iterations completed. " \
                   f"Learning rate: {np.around(learning_rate, 3)}. " \
+                  #f"Confidence: {confidence}. " \
                   f"Cost: {np.around(cost, 5)} " + " " * 25
                   , end = "\r")
 
             if plot_cost:
                 costs = np.append(costs, cost)
-
-            # give the model some confidence
-            confidence += 1
         
     # plot the cost
     if plot_cost:
