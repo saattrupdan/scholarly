@@ -69,7 +69,8 @@ def binary_cross_entropy_cost(Yhat, Y):
     is also used for multilabel classification, in a "one vs rest" fashion.
 
     INPUT:
-    Yhat -- probability vector corresponding to predictions, shape (output_layer, m)
+    Yhat -- probability vector corresponding to predictions,
+            shape (output_layer, m)
     Y -- true "label" vector, shape (output_layer, m)
 
     OUTPUT:
@@ -80,15 +81,6 @@ def binary_cross_entropy_cost(Yhat, Y):
     
     m = Y.shape[1]
     
-    # avoid taking log of zero
-    if 0 in Yhat:
-        Yhat += 0.000001
-    elif 1 in Yhat:
-        Yhat -= 0.000001
-    
-    # if we somehow encountered negative values, flip the sign
-    Yhat = np.abs(Yhat)
-
     return -1. / m * np.sum(Y * np.log(Yhat) + (1. - Y) * np.log(1. - Yhat))
 
 def multiclass_cross_entropy_cost(Yhat, Y):
@@ -105,13 +97,6 @@ def multiclass_cross_entropy_cost(Yhat, Y):
     
     assert Yhat.shape == Y.shape
     
-    # avoid taking log of zero
-    if 0 in Yhat:
-        Yhat += 0.000001
-    
-    # if we somehow encountered negative values, flip the sign
-    Yhat = np.abs(Yhat)
-
     m = Y.shape[1]
     return -1. / m * np.sum(Y * np.log(Yhat))
 
@@ -338,15 +323,6 @@ def back_prop(AL, Y, caches, activations = 'default',
     if activations == 'default':
         activations = ['relu'] * (L - 1) + ['sigmoid']
     
-    # avoid taking log of zero
-    if 0 in AL:
-        AL += 0.000001
-    elif 1 in AL:
-        AL -= 0.000001
-
-    # if we somehow encountered negative values, flip the sign
-    AL = np.abs(AL)
-
     # Initializing the backpropagation
     if cost_function == 'binary_cross_entropy':
         grads[f"dA{L}"] = -(np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
@@ -355,7 +331,7 @@ def back_prop(AL, Y, caches, activations = 'default',
     elif cost_function == 'l2':
         grads[f"dA{L}"] = AL - Y
 
-    for l in reversed(range(L)):
+    for l in np.arange(L)[::-1]:
         current_cache = caches[l]
         grads[f"dA{l}"], grads[f"dW{l+1}"], grads[f"db{l+1}"] = \
             back_step(grads[f"dA{l+1}"], current_cache, activations[l], 
