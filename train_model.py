@@ -39,7 +39,7 @@ for file_name in file_names:
 
         # build homegrown neural network
         nn_model = NeuralNetwork(
-            layer_dims = [150, 5], # this should maybe be variable
+            layer_dims = [30, 5], # this should maybe be variable
             activations = ['tanh', 'sigmoid']
             )
         

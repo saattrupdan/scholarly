@@ -39,5 +39,5 @@
 
 150 hidden neurons, with accumulated confidence:
   target cost  =  0.30
-  accuracy     =  
-  time         =  
+  accuracy     =  94.7%
+  time         =  ~4h
