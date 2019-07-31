@@ -109,7 +109,11 @@ def extract(file_name, path = "data", batch_size = 10,
                     # if doomsday_clock == np.inf then this stays np.inf
                     doomsday_clock -= 1
 
-            print(f"ELMo processed {(i+1) * batch_size} papers... " \
+            if doomsday_clock == np.inf:
+                print(f"ELMo processed {(i+1) * batch_size} papers... "
+                    , end = "\r")
+            else:
+                print(f"ELMo processed {(i+1) * batch_size} papers... " \
                     f"Doomsday clock at {doomsday_clock}...", end = "\r")
 
         print("") # to deal with \r

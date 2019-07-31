@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt # for plotting cost
 from sklearn.base import BaseEstimator, TransformerMixin
 import warnings # allows suppression of warnings
 import itertools as it # enables count()
-
+from functools import reduce # used to calculate accuracy
 
 ##### ACTIVATION FUNCTIONS #####
 
@@ -345,7 +345,8 @@ def back_prop(AL, Y, caches, activations = 'default',
 def train_nn(X, Y, layer_dims, params, activations = 'default', 
     cost_function = 'binary_cross_entropy', init_learning_rate = 1.0,
     plot_cost = False, adaptive_learning = 0.05,
-    target_cost = 0.1, min_learning_rate = 0.001):
+    target_accuracy = 0.95, min_learning_rate = 0.00001,
+    test_set = None):
     """
     Trains a neural network.
     
@@ -362,8 +363,10 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
     adaptive_learning -- gradually lower learning rate when cost starts 
                          increasing, if it's nonzero. Must be strictly 
                          between 0 and 1
-    target_cost -- stop gradient descent when cost is below this number
+    target_accuracy -- stop gradient descent when training accuracy is
+                       below this number
     min_learning_rate -- minimal allowed learning rate
+    test_set -- a tuple (X_test, Y_test) for calculating test accuracy
     
     OUTPUT:
     params -- parameters learnt by the model.
@@ -372,6 +375,10 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
     costs = np.asarray([])
     confidence = 0
     learning_rate = init_learning_rate
+
+    if test_set:
+        (X_test, Y_test) = test_set
+        test_accuracy = 0
     
     print(f"Performing batch gradient descent...", end = "\r")
     for i in it.count():
@@ -401,12 +408,41 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
         elif cost_function == 'l2':
             cost = l2_cost(AL, Y)
 
-        # if target cost is reached then stop
-        if cost < target_cost:
-            print("") # deal with \r
-            print(f"Reached target cost, ending at {np.around(cost, 5)}.")
-            break
+        if i % 1000 == 0:
+            
+            # calculate training accuracy
+            Yhat, _ = forward_prop(X, params, activations)
+            Yhat = np.squeeze(np.around(Yhat, decimals = 0)).astype('int')
+            correct_predictions = np.sum(np.asarray(
+                [reduce(lambda z, w: z and w, x) 
+                for x in np.equal(Y.T, Yhat.T)]
+                ))
+            train_accuracy = correct_predictions / X.shape[1]
+            
+            # if target training accuracy is reached then stop
+            if train_accuracy > target_accuracy:
+                print("") # deal with \r
+                print("Reached target training accuracy.")
+                break
         
+            # calculate test accuracy
+            if test_set:
+                old_test_accuracy = test_accuracy
+                Yhat, _ = forward_prop(X_test, params, activations)
+                Yhat = np.squeeze(np.around(Yhat, decimals = 0)).astype('int')
+                correct_predictions = np.sum(np.asarray(
+                    [reduce(lambda z, w: z and w, x)
+                    for x in np.equal(Y_test.T, Yhat.T)]
+                    ))
+                test_accuracy = correct_predictions / X_test.shape[1]
+
+                # if test accuracy starts to decrease then stop
+                if test_accuracy < old_test_accuracy:
+                    params = old_params
+                    print("") # deal with \r
+                    print("Test accuracy started dropping. Stopping.")
+                    break
+
         # if cost starts to increase then rewind one step
         # and lower the learning rate
         if adaptive_learning and i > 0 and cost > old_cost:
@@ -452,18 +488,19 @@ class NeuralNetwork(TransformerMixin, BaseEstimator):
     def __init__(self, layer_dims = [1], activations = 'default', 
         init_method = 'he', cost_function = 'binary_cross_entropy',
         init_learning_rate = 1.0, plot_cost = False,
-        adaptive_learning = 0.05, target_cost = 0.3,
-        min_learning_rate = 0.001):
+        adaptive_learning = 0.05, target_accuracy = 0.95,
+        min_learning_rate = 0.00001, test_set = None):
 
         self.layer_dims_ = layer_dims
         self.activations_ = activations
         self.init_method_ = init_method
         self.cost_function_ = cost_function
-        self.target_cost_ = target_cost
+        self.target_accuracy_ = target_accuracy
         self.plot_cost_ = plot_cost
         self.init_learning_rate_ = init_learning_rate
         self.min_learning_rate_ = min_learning_rate
         self.adaptive_learning_ = adaptive_learning 
+        self.test_set_ = test_set
         self.params_ = None
     
     # add input layer and initialise params
@@ -480,11 +517,12 @@ class NeuralNetwork(TransformerMixin, BaseEstimator):
             params = self.params_,
             activations = self.activations_, 
             cost_function = self.cost_function_, 
-            target_cost = self.target_cost_, 
+            target_accuracy = self.target_accuracy_, 
             plot_cost = self.plot_cost_, 
             init_learning_rate = self.init_learning_rate_,
             min_learning_rate = self.min_learning_rate_,
-            adaptive_learning = self.adaptive_learning_
+            adaptive_learning = self.adaptive_learning_,
+            test_set = self.test_set_
             )
         return self
     
