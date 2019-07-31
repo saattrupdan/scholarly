@@ -1,5 +1,6 @@
 ##### TRAINING LOG #####
 
+
 ~~~ arxiv_sample_1000 ~~~
 30 hidden neurons, no confidence:
   target cost  =  0.10
@@ -22,9 +23,10 @@
   time         =  ~2m
 
 30 hidden neurons, with accumulated confidence:
-  target cost  =  0.30
-  accuracy     =  95.9%
-  time         =  ~2m
+  target cost       =  0.30
+  training accuracy =  95.9%
+  time              =  ~2m
+
 
 ~~~ arxiv_sample_5000 ~~~
 30 hidden neurons, no confidence, no infinity:
@@ -33,11 +35,28 @@
   time         =  ~2h3m
 
 30 hidden neurons, with accumulated confidence:
-  target cost  =  0.30
-  accuracy     =  94.5%
-  time         =  ~2h27m
+  target cost       =  0.30
+  training accuracy =  94.5%
+  test accuracy     =  
+  time              =  ~2h27m
 
 150 hidden neurons, with accumulated confidence:
   target cost  =  0.30
   accuracy     =  94.7%
   time         =  ~4h
+
+
+~~~ arxiv_sample_10000 ~~~
+30 hidden neurons, with accumulated confidence:
+  target cost       =  0.30
+  training accuracy =  93.4%
+  test accuracy     =  
+  time              =  ~17h
+
+
+~~~ arxiv_sample_25000 ~~~
+30 hidden neurons, with accumulated confidence:
+  target cost       =  0.30
+  training accuracy =  
+  test accuracy     =  
+  time              =  

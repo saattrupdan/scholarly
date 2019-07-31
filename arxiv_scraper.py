@@ -28,8 +28,8 @@ def fetch(category="", max_results=5, start=0):
 
     # fetch data and create soup
     url = f'http://export.arxiv.org/api/query?search_query=cat{category}&' \
-           'start={start}&max_results={max_results}&sortBy=lastUpdatedDate&' \
-           'sortOrder=descending'
+          f'start={start}&max_results={max_results}&sortBy=lastUpdatedDate&' \
+          f'sortOrder=descending'
     with request.urlopen(url) as url_data:
         soup = BeautifulSoup(url_data, "xml")
 
@@ -137,8 +137,8 @@ def batch_fetch(category = "", max_results = 5, file_path = "paper_data",
             sleep(30)
             time_waited += 30
             if time_waited == 120:
-                print(f"BATCH {i+1}/{batches}: Timed out. Might have" \
-                       " scraped everything in {category}.")
+                print(f"BATCH {i+1}/{batches}: Timed out. Might have " \
+                      f"scraped everything in {category}.")
                 break
 
             df = fetch(category, result_size, i * batch_size + start)
@@ -146,7 +146,7 @@ def batch_fetch(category = "", max_results = 5, file_path = "paper_data",
         if df.size != 0:
             df.to_csv(f"{file_path}_{i}.csv", index=False)
             print(f"BATCH {i+1}/{batches}: Success! Loaded {result_size}" \
-                   " paper(s) into the temporary file {file_path}_{i}.csv.")
+                  f" paper(s) into the temporary file {file_path}_{i}.csv.")
         else:
             batches = i
             break
@@ -165,13 +165,21 @@ def batch_fetch(category = "", max_results = 5, file_path = "paper_data",
 def cat_scrape(max_results_per_cat=10000, file_path="arxiv_data",
                batch_size=100, start_cat="astro-ph"):
     
+    # if csv of all arxiv categories doesn't exist, download it
+    if not os.path.isfile('cats.csv'):
+        url_start = "https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/" \
+                    "scholarly_data/"
+        wget.download(url_start + "cats.csv", out = 'cats.csv')
+    
+    # create list of categories
     all_cats = list(pd.read_csv("cats.csv")['category'])
     start_index = all_cats.index(start_cat)
     cats = all_cats[start_index:]
-    
+   
+    # scraping loop 
     for i, cat in enumerate(cats):
         print(f"CATEGORY {i+1}/{len(cats)}: Scraping {max_results_per_cat}" \
-               " papers from {cat}...")
+              f" papers from {cat}...")
         batch_fetch(category = cat, max_results = max_results_per_cat,
                     file_path = f"{file_path}_{cat}", start = 0,
                     batch_size = batch_size)
@@ -187,4 +195,4 @@ def cat_scrape(max_results_per_cat=10000, file_path="arxiv_data",
         os.remove(f"{file_path}_{cat}.csv")
 
     print(f"Scraped {max_results_per_cat * len(cats)} papers and loaded" \
-           " them into {file_path}.csv.")
+          f" them into {file_path}.csv.")
