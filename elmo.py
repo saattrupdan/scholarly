@@ -85,6 +85,11 @@ def extract(file_name, path = "data", batch_size = 10,
                                 )
                     except StopIteration:
                         break
+                    
+                    # create empty file to reserve it
+                    temp_file_name = f"{file_name}_elmo_{i}.csv"
+                    full_path = os.path.join(path, temp_file_name)
+                    open(full_path, 'a').close()
                 
                     # initialise session
                     sess.run(tf.compat.v1.global_variables_initializer())
@@ -101,8 +106,6 @@ def extract(file_name, path = "data", batch_size = 10,
                     elmo_data = sess.run(tf.reduce_mean(embeddings, 1))
                 
                     # save ELMo features for the batch into a csv file
-                    temp_file_name = f"{file_name}_elmo_{i}.csv"
-                    full_path = os.path.join(path, temp_file_name)
                     np.savetxt(full_path, elmo_data, delimiter = ',')
                     
                     # doomsday clock gets one step closer to doomsday

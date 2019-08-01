@@ -48,15 +48,13 @@
 
 ~~~ arxiv_sample_10000 ~~~
 30 hidden neurons, with accumulated confidence:
-  target cost       =  0.30
-  training accuracy =  93.4%
-  test accuracy     =  
-  time              =  ~17h
+  target training accuracy  =  75.0%
+  test accuracy             =  51.5%
+  time                      =  ~3h27m
 
 
 ~~~ arxiv_sample_25000 ~~~
 30 hidden neurons, with accumulated confidence:
-  target cost       =  0.30
-  training accuracy =  
-  test accuracy     =  
-  time              =  
+  target training accuracy  =  75.0%
+  test accuracy             =  
+  time                      =  
