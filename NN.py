@@ -4,6 +4,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 import warnings # allows suppression of warnings
 import itertools as it # enables count()
 from functools import reduce # used to calculate accuracy
+import os
 
 ##### ACTIVATION FUNCTIONS #####
 
@@ -344,7 +345,7 @@ def back_prop(AL, Y, caches, activations = 'default',
 
 def train_nn(X, Y, layer_dims, params, activations = 'default', 
     cost_function = 'binary_cross_entropy', init_learning_rate = 1.0,
-    plot_cost = False, adaptive_learning = 0.05,
+    plots = False, adaptive_learning = 0.05,
     target_accuracy = 0.95, min_learning_rate = 0.00001,
     test_set = None):
     """
@@ -359,7 +360,7 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
                    ReLU + sigmoid
     cost_function -- a string describing what cost function is used
     init_learning_rate -- initial learning rate of the gradient descent
-    plot_cost -- if True, it plots the cost
+    plots -- if True, it plots the cost
     adaptive_learning -- gradually lower learning rate when cost starts 
                          increasing, if it's nonzero. Must be strictly 
                          between 0 and 1
@@ -372,7 +373,10 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
     params -- parameters learnt by the model.
     """
 
-    costs = np.asarray([])
+    train_costs = np.asarray([])
+    test_costs = np.asarray([])
+    train_accs = np.asarray([])
+    test_accs = np.asarray([])
     confidence = 0
     learning_rate = init_learning_rate
 
@@ -385,7 +389,7 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
         # save old parameters
         if i > 0:
             old_params = params
-            old_cost = cost
+            old_train_cost = train_cost
         
         # give the model some confidence
         confidence += 1
@@ -402,13 +406,13 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
         
         # compute cost
         if cost_function == 'binary_cross_entropy':
-            cost = binary_cross_entropy_cost(AL, Y)
+            train_cost = binary_cross_entropy_cost(AL, Y)
         elif cost_function == 'multiclass_cross_entropy':
-            cost = multiclass_cross_entropy_cost(AL, Y)
+            train_cost = multiclass_cross_entropy_cost(AL, Y)
         elif cost_function == 'l2':
-            cost = l2_cost(AL, Y)
+            train_cost = l2_cost(AL, Y)
 
-        if i % 1000 == 0:
+        if i % 100 == 0:
             
             # calculate training accuracy
             Yhat, _ = forward_prop(X, params, activations)
@@ -425,29 +429,38 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
                 print("Reached target training accuracy.")
                 break
         
-            # calculate test accuracy
             if test_set:
-                old_test_accuracy = test_accuracy
                 Yhat, _ = forward_prop(X_test, params, activations)
+
+                # calculate test cost 
+                if cost_function == 'binary_cross_entropy':
+                    test_cost = binary_cross_entropy_cost(Yhat, Y_test)
+                elif cost_function == 'multiclass_cross_entropy':
+                    test_cost = multiclass_cross_entropy_cost(Yhat, Y_test)
+                elif cost_function == 'l2':
+                    test_cost = l2_cost(Yhat, Y_test)
+
+                # calculate test accuracy
                 Yhat = np.squeeze(np.around(Yhat, decimals = 0)).astype('int')
                 correct_predictions = np.sum(np.asarray(
                     [reduce(lambda z, w: z and w, x)
                     for x in np.equal(Y_test.T, Yhat.T)]
                     ))
                 test_accuracy = correct_predictions / X_test.shape[1]
+            
+                # store test costs and accuracies
+                test_costs = np.append(test_costs, test_cost)
+                test_accs = np.append(test_accs, test_accuracy)
+            
+            # store training costs and accuracies
+            train_costs = np.append(train_costs, train_cost)
+            train_accs = np.append(train_accs, train_accuracy)
 
-                # if test accuracy starts to decrease then stop
-                if test_accuracy < old_test_accuracy:
-                    params = old_params
-                    print("") # deal with \r
-                    print("Test accuracy started dropping. Stopping.")
-                    break
-
-        # if cost starts to increase then rewind one step
+        # if training cost starts to increase then rewind one step
         # and lower the learning rate
-        if adaptive_learning and i > 0 and cost > old_cost:
+        if adaptive_learning and i > 0 and train_cost > old_train_cost:
             params = old_params
-            cost = old_cost
+            train_cost = old_train_cost
 
             if confidence >= 100:
                 learning_rate *= 1 - (adaptive_learning * (confidence / 1000))
@@ -466,19 +479,29 @@ def train_nn(X, Y, layer_dims, params, activations = 'default',
                   f"{i+1} iterations completed. " \
                   f"Learning rate: {np.around(learning_rate, 3)}. " \
                   #f"Confidence: {confidence}. " \
-                  f"Cost: {np.around(cost, 5)} " + " " * 25
-                  , end = "\r")
+                  f"Training cost: {np.around(train_cost, 5)}. " \
+                  f"Test accuracy: {np.around(test_accuracy * 100, 2)}%. " \
+                  + " " * 25, end = "\r")
 
-            if plot_cost:
-                costs = np.append(costs, cost)
-        
-    # plot the cost
-    if plot_cost:
-        plt.plot(np.squeeze(costs))
+    # build and save plots
+    if plots:
+        plt.plot(np.squeeze(train_costs), label = 'train')
+        plt.plot(np.squeeze(test_costs), label = 'test')
+        plt.title('Cost')
         plt.ylabel('cost')
         plt.xlabel('iterations (hundreds)')
-        plt.title(f"Learning rate = {np.around(learning_rate, 3)}")
-        plt.show()
+        plt.legend()
+        plt.savefig(f'{X.shape[1]}_cost.png')
+        plt.clf()
+
+        plt.plot(np.squeeze(train_accs), label = 'train')
+        plt.plot(np.squeeze(test_accs), label = 'test')
+        plt.title('Accuracy')
+        plt.ylabel('accuracy')
+        plt.xlabel('iterations (hundreds)')
+        plt.legend()
+        plt.savefig(f'{X.shape[1]}_acc.png')
+        plt.clf()
     
     return params
 
@@ -487,7 +510,7 @@ class NeuralNetwork(TransformerMixin, BaseEstimator):
 
     def __init__(self, layer_dims = [1], activations = 'default', 
         init_method = 'he', cost_function = 'binary_cross_entropy',
-        init_learning_rate = 1.0, plot_cost = False,
+        init_learning_rate = 1.0, plots = False,
         adaptive_learning = 0.05, target_accuracy = 0.95,
         min_learning_rate = 0.00001, test_set = None):
 
@@ -496,7 +519,7 @@ class NeuralNetwork(TransformerMixin, BaseEstimator):
         self.init_method_ = init_method
         self.cost_function_ = cost_function
         self.target_accuracy_ = target_accuracy
-        self.plot_cost_ = plot_cost
+        self.plots_ = plots
         self.init_learning_rate_ = init_learning_rate
         self.min_learning_rate_ = min_learning_rate
         self.adaptive_learning_ = adaptive_learning 
@@ -518,7 +541,7 @@ class NeuralNetwork(TransformerMixin, BaseEstimator):
             activations = self.activations_, 
             cost_function = self.cost_function_, 
             target_accuracy = self.target_accuracy_, 
-            plot_cost = self.plot_cost_, 
+            plots = self.plots_, 
             init_learning_rate = self.init_learning_rate_,
             min_learning_rate = self.min_learning_rate_,
             adaptive_learning = self.adaptive_learning_,

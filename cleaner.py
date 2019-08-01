@@ -58,13 +58,21 @@ def setup(path = "data"):
         os.system(f"mkdir {path}")
         print(f"Created {path} directory")
 
-    # download a list of all the arXiv categories
     url_start = f"https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data/"
+
+    # download a list of all the arXiv categories
     full_path = os.path.join(path, "cats.csv")
     if not os.path.isfile(full_path):
         wget.download(url_start + "cats.csv", out = full_path)
     else:
         print("cats.csv is already downloaded.")
+    
+    # download test set
+    full_path = os.path.join(path, "arxiv_test_set.csv")
+    if not os.path.isfile(full_path):
+        wget.download(url_start + "arxiv_test_set.csv", out = full_path)
+    else:
+        print("arxiv_test_set.csv is already downloaded.")
 
 
 def download_papers(file_name, path = "data"):
