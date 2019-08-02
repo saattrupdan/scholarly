@@ -5,6 +5,7 @@ import os
 import pickle
 import sys
 from pathlib import Path
+import itertools as it
 
 # homegrown neural network
 from NN import NeuralNetwork
@@ -13,10 +14,46 @@ from functools import reduce # used to calculate accuracy
 
 # keras neural network packages
 from sklearn.metrics import classification_report
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
+from sklearn.metrics import f1_score
 from keras.models import Sequential
 from keras.layers.core import Dense
+from keras.layers.core import Dropout
+from keras.optimizers import SGD
 from keras.optimizers import Adam 
 from keras.callbacks import EarlyStopping
+
+# custom multilabel loss function
+import tensorflow as tf
+import keras.backend.tensorflow_backend as tfb
+
+
+# multiplier for positive targets, needs to be tuned
+# larger multiplier implies larger recall
+POS_WEIGHT = 50
+def weighted_binary_crossentropy(target, output):
+    """
+    Weighted binary crossentropy between an output tensor 
+    and a target tensor. POS_WEIGHT is used as a multiplier 
+    for the positive targets.
+
+    Combination of the following functions:
+    * keras.losses.binary_crossentropy
+    * keras.backend.tensorflow_backend.binary_crossentropy
+    * tf.nn.weighted_cross_entropy_with_logits
+    """
+    # transform back to logits
+    _epsilon = tfb._to_tensor(tfb.epsilon(), output.dtype.base_dtype)
+    output = tf.clip_by_value(output, _epsilon, 1 - _epsilon)
+    output = tf.log(output / (1 - output))
+    # compute weighted loss
+    loss = tf.nn.weighted_cross_entropy_with_logits(
+            targets=target,
+            logits=output,
+            pos_weight=POS_WEIGHT
+            )
+    return tf.reduce_mean(loss, axis=-1)
 
 
 # set list of file_names
@@ -43,64 +80,89 @@ for file_name in file_names:
         print("Model already trained.")
     else:
         # load test set
-        full_path = os.path.join(data_path, f"arxiv_test_set.csv")
-        df_1hot_agg = pd.read_csv(full_path)
-        X_test = np.asarray(df_1hot_agg.iloc[:, :1024])
-        Y_test = np.asarray(df_1hot_agg.iloc[:, 1024:])
+        full_path = os.path.join(data_path, f"arxiv_test_set_big.csv")
+        test_df = pd.read_csv(full_path)
+        X_test = np.asarray(test_df.iloc[:, :1024])
+        Y_test = np.asarray(test_df.iloc[:, 1024:])
 
         # fetch data
-        full_path = os.path.join(data_path, f"{file_name}_1hot_agg.csv")
-        df_1hot_agg = pd.read_csv(full_path)
-        X = np.asarray(df_1hot_agg.iloc[:, :1024])
-        Y = np.asarray(df_1hot_agg.iloc[:, 1024:])
+        full_path = os.path.join(data_path, f"{file_name}_1hot.csv")
+        df = pd.read_csv(full_path)
+        X_train = np.asarray(df.iloc[:, :1024])
+        Y_train = np.asarray(df.iloc[:, 1024:])
 
         max_epochs = 1000000
 
         nn_model = Sequential()
-        nn_model.add(Dense(500, activation = 'tanh'))
-        nn_model.add(Dense(5, activation = 'sigmoid'))
+        nn_model.add(Dropout(0.5))
+        nn_model.add(Dense(2048, activation = 'tanh'))
+        nn_model.add(Dropout(0.5))
+        nn_model.add(Dense(1024, activation = 'tanh'))
+        nn_model.add(Dropout(0.5))
+        nn_model.add(Dense(153, activation = 'sigmoid'))
+
         nn_model.compile(
-            loss = 'binary_crossentropy', 
+            #loss = 'binary_crossentropy', 
+            loss = weighted_binary_crossentropy, 
+            #optimizer = SGD(momentum = 0.9),
             optimizer = Adam(),
-            metrics = ['accuracy']
             )
 
         early_stopping = EarlyStopping(
-            monitor = 'val_loss',
-            min_delta = 0.001,
+            monitor = 'loss',
+            #monitor = 'val_loss',
             patience = 20,
+            min_delta = 1e-4,
             restore_best_weights = True
             )
 
-        H = nn_model.fit(X, Y,
+        H = nn_model.fit(
+                X_train, 
+                Y_train,
                 validation_data = (X_test, Y_test),
                 epochs = max_epochs,
-                batch_size = 32,
+                batch_size = 512,
                 callbacks = [early_stopping]
                 )
 
-        eff_epochs = len(H.history['val_loss'])
-
         # evaluate the network
         print("[INFO] evaluating network...")
-        predictions = nn_model.predict(X_test, batch_size=32)
-        print(classification_report(
-                Y_test.argmax(axis=1),
-                predictions.argmax(axis=1),
-                target_names = ['physics', 'other', 'cs', 'maths', 'stats']
-                ))
+
+        predictions = np.asarray(nn_model.predict(X_train, batch_size = 32))
+
+        def multi_label_bins(prediction):
+            return (prediction > max(prediction) / 2).astype('int')
+
+        def multi_label_accuracy(y, yhat):
+            assert y.shape == yhat.shape
+            return sum(np.equal(y, yhat)) / len(y)
+
+        bin_predictions = np.asarray([multi_label_bins(prediction) 
+            for prediction in predictions])
+    
+        m = Y_train.shape[0]
+        accuracy = sum(np.asarray([multi_label_accuracy(y, yhat)
+            for (y, yhat) in zip(Y_train, bin_predictions)])) / m
+
+        prec = precision_score(Y_train, bin_predictions, average = 'micro')
+        rec = recall_score(Y_train, bin_predictions, average = 'micro')
+        f1 = f1_score(Y_train, bin_predictions, average = 'micro')
+
+        print(f"Training accuracy: {np.around(accuracy * 100, 2)}%")
+        print(f"Training micro-average precision: {np.around(f1 * 100, 2)}%")
+        print(f"Training micro-average recall: {np.around(f1 * 100, 2)}%")
+        print(f"Training micro-average f1 score: {np.around(f1 * 100, 2)}%")
 
         # plot the training loss and accuracy
+        eff_epochs = len(H.history['val_loss'])
         N = np.arange(0, eff_epochs)
         plt.style.use("ggplot")
         plt.figure()
         plt.plot(N, H.history["loss"], label = "train_loss")
         plt.plot(N, H.history["val_loss"], label = "val_loss")
-        plt.plot(N, H.history["acc"], label = "train_acc")
-        plt.plot(N, H.history["val_acc"], label = "val_acc")
         plt.title(file_name)
         plt.xlabel("Epochs")
-        plt.ylabel("Loss/Accuracy")
+        plt.ylabel("Loss")
         plt.legend()
         full_path = os.path.join(data_path, f'{file_name}_plot.png')
         plt.savefig(full_path)
@@ -143,7 +205,7 @@ for file_name in file_names:
 
 
         # save model
-        full_path = os.path.join(data_path, f'{file_name}_model.pickle')
-        with open(full_path, 'wb') as pickle_out:
-            pickle.dump(nn_model, pickle_out)
+        #full_path = os.path.join(data_path, f'{file_name}_model.pickle')
+        #with open(full_path, 'wb') as pickle_out:
+        #    pickle.dump(nn_model, pickle_out)
         
