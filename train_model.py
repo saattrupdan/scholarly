@@ -30,7 +30,7 @@ import keras.backend.tensorflow_backend as tfb
 
 
 # multiplier for positive targets, needs to be tuned
-# larger multiplier implies larger recall
+# POS_WEIGHT = 1 performed really well: f1 score 96.44% after 668 epochs
 POS_WEIGHT = 50
 def weighted_binary_crossentropy(target, output):
     """
@@ -54,6 +54,13 @@ def weighted_binary_crossentropy(target, output):
             pos_weight=POS_WEIGHT
             )
     return tf.reduce_mean(loss, axis=-1)
+
+    def multi_label_bins(prediction):
+        return (prediction > max(prediction) / 2).astype('int')
+
+    def multi_label_accuracy(y, yhat):
+        assert y.shape == yhat.shape
+        return sum(np.equal(y, yhat)) / len(y)
 
 
 # set list of file_names
@@ -128,30 +135,33 @@ for file_name in file_names:
         # evaluate the network
         print("[INFO] evaluating network...")
 
+        print("")
+        print("TRAINING DATA")
+        
         predictions = np.asarray(nn_model.predict(X_train, batch_size = 32))
-
-        def multi_label_bins(prediction):
-            return (prediction > max(prediction) / 2).astype('int')
-
-        def multi_label_accuracy(y, yhat):
-            assert y.shape == yhat.shape
-            return sum(np.equal(y, yhat)) / len(y)
-
         bin_predictions = np.asarray([multi_label_bins(prediction) 
             for prediction in predictions])
-    
-        m = Y_train.shape[0]
-        accuracy = sum(np.asarray([multi_label_accuracy(y, yhat)
-            for (y, yhat) in zip(Y_train, bin_predictions)])) / m
-
         prec = precision_score(Y_train, bin_predictions, average = 'micro')
         rec = recall_score(Y_train, bin_predictions, average = 'micro')
         f1 = f1_score(Y_train, bin_predictions, average = 'micro')
 
-        print(f"Training accuracy: {np.around(accuracy * 100, 2)}%")
-        print(f"Training micro-average precision: {np.around(f1 * 100, 2)}%")
-        print(f"Training micro-average recall: {np.around(f1 * 100, 2)}%")
-        print(f"Training micro-average f1 score: {np.around(f1 * 100, 2)}%")
+        print(f"Micro-average precision: {np.around(prec * 100, 2)}%")
+        print(f"Micro-average recall: {np.around(rec * 100, 2)}%")
+        print(f"Micro-average f1 score: {np.around(f1 * 100, 2)}%")
+        
+        print("")
+        print("TEST DATA")
+        
+        predictions = np.asarray(nn_model.predict(X_test, batch_size = 32))
+        bin_predictions = np.asarray([multi_label_bins(prediction) 
+            for prediction in predictions])
+        prec = precision_score(Y_test, bin_predictions, average = 'micro')
+        rec = recall_score(Y_test, bin_predictions, average = 'micro')
+        f1 = f1_score(Y_test, bin_predictions, average = 'micro')
+
+        print(f"Micro-average precision: {np.around(prec * 100, 2)}%")
+        print(f"Micro-average recall: {np.around(rec * 100, 2)}%")
+        print(f"Micro-average f1 score: {np.around(f1 * 100, 2)}%")
 
         # plot the training loss and accuracy
         eff_epochs = len(H.history['val_loss'])
