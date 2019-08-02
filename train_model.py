@@ -5,17 +5,18 @@ import os
 import pickle
 import sys
 from pathlib import Path
-from datetime import datetime
-from functools import reduce # used to calculate accuracy
 
 # homegrown neural network
 from NN import NeuralNetwork
+from datetime import datetime
+from functools import reduce # used to calculate accuracy
 
 # keras neural network packages
 from sklearn.metrics import classification_report
 from keras.models import Sequential
 from keras.layers.core import Dense
-from keras.optimizers import SGD
+from keras.optimizers import Adam 
+from keras.callbacks import EarlyStopping
 
 
 # set list of file_names
@@ -53,19 +54,32 @@ for file_name in file_names:
         X = np.asarray(df_1hot_agg.iloc[:, :1024])
         Y = np.asarray(df_1hot_agg.iloc[:, 1024:])
 
-        epochs = 4000
+        max_epochs = 1000000
 
         nn_model = Sequential()
-        nn_model.add(Dense(30, activation = 'tanh'))
+        nn_model.add(Dense(500, activation = 'tanh'))
         nn_model.add(Dense(5, activation = 'sigmoid'))
         nn_model.compile(
             loss = 'binary_crossentropy', 
-            optimizer = SGD(lr = 0.1),
+            optimizer = Adam(),
             metrics = ['accuracy']
             )
 
-        H = nn_model.fit(X, Y, validation_data = (X_test, Y_test),
-            epochs = epochs, batch_size = 64)
+        early_stopping = EarlyStopping(
+            monitor = 'val_loss',
+            min_delta = 0.001,
+            patience = 20,
+            restore_best_weights = True
+            )
+
+        H = nn_model.fit(X, Y,
+                validation_data = (X_test, Y_test),
+                epochs = max_epochs,
+                batch_size = 32,
+                callbacks = [early_stopping]
+                )
+
+        eff_epochs = len(H.history['val_loss'])
 
         # evaluate the network
         print("[INFO] evaluating network...")
@@ -77,15 +91,15 @@ for file_name in file_names:
                 ))
 
         # plot the training loss and accuracy
-        N = np.arange(0, epochs)
+        N = np.arange(0, eff_epochs)
         plt.style.use("ggplot")
         plt.figure()
         plt.plot(N, H.history["loss"], label = "train_loss")
         plt.plot(N, H.history["val_loss"], label = "val_loss")
         plt.plot(N, H.history["acc"], label = "train_acc")
         plt.plot(N, H.history["val_acc"], label = "val_acc")
-        plt.title("Training Loss and Accuracy (Simple NN)")
-        plt.xlabel("Epoch #")
+        plt.title(file_name)
+        plt.xlabel("Epochs")
         plt.ylabel("Loss/Accuracy")
         plt.legend()
         full_path = os.path.join(data_path, f'{file_name}_plot.png')
