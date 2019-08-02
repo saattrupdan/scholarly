@@ -45,6 +45,19 @@ def agg_cats_to_binary(categories, agg_cats):
     agg_categories = aggregate_cats(categories)
     return np.in1d(agg_cats, agg_categories).astype('int8')
 
+def cats_to_binary(cat_list, all_cats):
+    '''
+    Turns categories into a 0-1 sequence with 1's
+    at every category index.
+    
+    INPUT
+        categories, an iterable of strings
+    
+    OUTPUT
+        numpy array with 1 at the category indexes and zeros everywhere else
+    '''
+    return np.in1d(all_cats, cat_list).astype('int8')
+
 def one_hot_agg(file_name, path = 'data'):
     ''' One-hot encode cats into binary aggregated cats. '''
     
@@ -95,3 +108,53 @@ def one_hot_agg(file_name, path = 'data'):
         df_1hot_agg.to_csv(full_path, index = False)
 
         print(f"Saved the one-hot encoded dataframe.")
+
+
+def one_hot(file_name, path = 'data'):
+    ''' One-hot encode cats into binary cats. '''
+    
+    full_path = os.path.join(path, f"{file_name}_1hot.csv")
+    if os.path.isfile(full_path):
+        print("File already one-hot encoded.")
+    else:
+        # get array of cats
+        full_path = os.path.join(path, "cats.csv")
+        cats_df = pd.read_csv(full_path)
+        all_cats = np.asarray(cats_df['category'].unique())
+
+        # load cats data
+        print("Loading cat data...")
+        full_path = os.path.join(path, f"{file_name}_cats.csv")
+        clean_cats_with_path = lambda x: cleaner.clean_cats(x, path = path)
+        cleaned_cats = pd.read_csv(
+            full_path, 
+            header = None, 
+            converters = {0 : clean_cats_with_path}
+            )
+        print(f"Cat data loaded!")
+        
+        # load ELMo data and merge with cats data
+        print("Loading ELMo'd text...")
+        full_path = os.path.join(path, f"{file_name}_elmo.csv")
+        df_1hot = pd.read_csv(full_path, header = None)
+        df_1hot['category'] = cleaned_cats.iloc[:, 0]
+        df_1hot = df_1hot.dropna()
+        print(f"ELMo data loaded!")
+        
+        # one-hot encode
+        print("One-hot encoding...")
+        bincat_arr = np.array([cats_to_binary(cat_list, all_cats)
+            for cat_list in df_1hot['category']]).transpose()
+        bincat_dict = {key:value for (key,value) in zip(all_cats, bincat_arr)}
+        bincat_df = pd.DataFrame.from_dict(bincat_dict)
+        print("One-hot encoding complete!")
+
+        # add the one-hot encoded cats and drop the category column
+        df_1hot = pd.concat([df_1hot, bincat_df], axis = 1, sort = False)
+        df_1hot.drop(['category'], axis=1, inplace=True)
+
+        # save the one-hot encoded dataframe
+        full_path = os.path.join(path, f"{file_name}_1hot.csv")
+        df_1hot.to_csv(full_path, index = False)
+
+        print("Saved the one-hot encoded dataframe.")

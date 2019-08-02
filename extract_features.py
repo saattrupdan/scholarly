@@ -37,7 +37,7 @@ for file_name in file_names:
         doomsday_clock = 50,
         confirmation = True
         )
-    onehot.one_hot_agg(
+    onehot.one_hot(
         file_name = file_name,
         path = data_path
         )
