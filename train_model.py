@@ -6,11 +6,11 @@ import pickle
 import sys
 from pathlib import Path
 import itertools as it
+from functools import reduce
 
 # homegrown neural network
 from NN import NeuralNetwork
 from datetime import datetime
-from functools import reduce # used to calculate accuracy
 
 # keras neural network packages
 from sklearn.metrics import classification_report
@@ -29,11 +29,8 @@ import tensorflow as tf
 import keras.backend.tensorflow_backend as tfb
 
 
-# multiplier for positive targets, needs to be tuned
-# POS_WEIGHT = 1 performed really well: f1 score 96.44% after 668 epochs
-POS_WEIGHT = 50
 def weighted_binary_crossentropy(target, output):
-    """
+    '''
     Weighted binary crossentropy between an output tensor 
     and a target tensor. POS_WEIGHT is used as a multiplier 
     for the positive targets.
@@ -42,25 +39,33 @@ def weighted_binary_crossentropy(target, output):
     * keras.losses.binary_crossentropy
     * keras.backend.tensorflow_backend.binary_crossentropy
     * tf.nn.weighted_cross_entropy_with_logits
-    """
+    '''
     # transform back to logits
     _epsilon = tfb._to_tensor(tfb.epsilon(), output.dtype.base_dtype)
     output = tf.clip_by_value(output, _epsilon, 1 - _epsilon)
     output = tf.log(output / (1 - output))
+
     # compute weighted loss
     loss = tf.nn.weighted_cross_entropy_with_logits(
-            targets=target,
-            logits=output,
-            pos_weight=POS_WEIGHT
+            targets = target,
+            logits = output,
+            pos_weight = POS_WEIGHT
             )
-    return tf.reduce_mean(loss, axis=-1)
 
-    def multi_label_bins(prediction):
-        return (prediction > max(prediction) / 2).astype('int')
+    return tf.reduce_mean(loss, axis = -1)
 
-    def multi_label_accuracy(y, yhat):
-        assert y.shape == yhat.shape
-        return sum(np.equal(y, yhat)) / len(y)
+def multi_label_bins(prediction, threshold = 0.5):
+    ''' Transform probabilities of multilabel predictions into binary values. '''
+    return (prediction > (max(prediction) * threshold)).astype('int')
+
+def multi_label_accuracy(y, yhat):
+    '''
+    Compute accuracy of multi-label predictions, where to be counted as a
+    correct prediction, all the labels have to be predicted correctly.
+    '''
+    assert y.shape == yhat.shape
+    accuracies = np.asarray([reduce(lambda z, w: z and w, x) for x in np.equal(yhat, y)])
+    return np.average(accuracies)
 
 
 # set list of file_names
@@ -74,6 +79,15 @@ home_dir = str(Path.home())
 data_path = os.path.join(home_dir, "pCloudDrive", "Public Folder",
     "scholarly_data")
 
+
+### Hyperparameters ###
+
+# multiplier for positive targets in binary cross entropy
+# forces higher recall and lower precision
+# more complex model -> smaller POS_WEIGHT
+POS_WEIGHT = 2
+
+
 for file_name in file_names:
     print("------------------------------------")
     print(f"NOW PROCESSING: {file_name}")
@@ -86,11 +100,11 @@ for file_name in file_names:
             nn_model = pickle.load(pickle_in)
         print("Model already trained.")
     else:
-        # load test set
-        full_path = os.path.join(data_path, f"arxiv_test_set_big.csv")
-        test_df = pd.read_csv(full_path)
-        X_test = np.asarray(test_df.iloc[:, :1024])
-        Y_test = np.asarray(test_df.iloc[:, 1024:])
+        # load validation set
+        full_path = os.path.join(data_path, f"arxiv_val_set.csv")
+        val_df = pd.read_csv(full_path)
+        X_val = np.asarray(val_df.iloc[:, :1024])
+        Y_val = np.asarray(val_df.iloc[:, 1024:])
 
         # fetch data
         full_path = os.path.join(data_path, f"{file_name}_1hot.csv")
@@ -102,7 +116,7 @@ for file_name in file_names:
 
         nn_model = Sequential()
         nn_model.add(Dropout(0.5))
-        nn_model.add(Dense(2048, activation = 'tanh'))
+        nn_model.add(Dense(1024, activation = 'tanh'))
         nn_model.add(Dropout(0.5))
         nn_model.add(Dense(1024, activation = 'tanh'))
         nn_model.add(Dropout(0.5))
@@ -111,14 +125,13 @@ for file_name in file_names:
         nn_model.compile(
             #loss = 'binary_crossentropy', 
             loss = weighted_binary_crossentropy, 
-            #optimizer = SGD(momentum = 0.9),
             optimizer = Adam(),
             )
 
         early_stopping = EarlyStopping(
-            monitor = 'loss',
-            #monitor = 'val_loss',
-            patience = 20,
+            #monitor = 'loss',
+            monitor = 'val_loss',
+            patience = 50,
             min_delta = 1e-4,
             restore_best_weights = True
             )
@@ -126,25 +139,42 @@ for file_name in file_names:
         H = nn_model.fit(
                 X_train, 
                 Y_train,
-                validation_data = (X_test, Y_test),
+                validation_data = (X_val, Y_val),
                 epochs = max_epochs,
                 batch_size = 512,
                 callbacks = [early_stopping]
                 )
 
-        # evaluate the network
-        print("[INFO] evaluating network...")
+        # find optimal threshold value
+        print("")
+        print("Finding optimal threshold value... ")
+        def get_acc(predictions, threshold):
+            bin_predictions = np.asarray([multi_label_bins(prediction, threshold) 
+                for prediction in predictions])
+            return multi_label_accuracy(Y_train, bin_predictions)
+        
+        preds = np.asarray(nn_model.predict(X_train, batch_size = 32))
+        
+        THRESHOLD = 0.25
+        for i in np.arange(THRESHOLD, 0.99, 0.01):
+            if get_acc(preds, THRESHOLD + i) >= get_acc(preds, THRESHOLD):
+                THRESHOLD = np.around(THRESHOLD + i, 2)
+        print(f"Optimal threshold value is {np.around(THRESHOLD * 100, 2)}%.")
 
+        # evaluate the network
         print("")
         print("TRAINING DATA")
         
         predictions = np.asarray(nn_model.predict(X_train, batch_size = 32))
-        bin_predictions = np.asarray([multi_label_bins(prediction) 
+        bin_predictions = np.asarray([multi_label_bins(prediction, THRESHOLD) 
             for prediction in predictions])
+
+        acc = multi_label_accuracy(Y_train, bin_predictions)
         prec = precision_score(Y_train, bin_predictions, average = 'micro')
         rec = recall_score(Y_train, bin_predictions, average = 'micro')
         f1 = f1_score(Y_train, bin_predictions, average = 'micro')
 
+        print(f"Multi-label accuracy: {np.around(acc * 100, 2)}%")
         print(f"Micro-average precision: {np.around(prec * 100, 2)}%")
         print(f"Micro-average recall: {np.around(rec * 100, 2)}%")
         print(f"Micro-average f1 score: {np.around(f1 * 100, 2)}%")
@@ -152,16 +182,20 @@ for file_name in file_names:
         print("")
         print("TEST DATA")
         
-        predictions = np.asarray(nn_model.predict(X_test, batch_size = 32))
-        bin_predictions = np.asarray([multi_label_bins(prediction) 
+        predictions = np.asarray(nn_model.predict(X_val, batch_size = 32))
+        bin_predictions = np.asarray([multi_label_bins(prediction, THRESHOLD) 
             for prediction in predictions])
-        prec = precision_score(Y_test, bin_predictions, average = 'micro')
-        rec = recall_score(Y_test, bin_predictions, average = 'micro')
-        f1 = f1_score(Y_test, bin_predictions, average = 'micro')
 
+        acc = multi_label_accuracy(Y_val, bin_predictions)
+        prec = precision_score(Y_val, bin_predictions, average = 'micro')
+        rec = recall_score(Y_val, bin_predictions, average = 'micro')
+        f1 = f1_score(Y_val, bin_predictions, average = 'micro')
+
+        print(f"Multi-label accuracy: {np.around(acc * 100, 2)}%")
         print(f"Micro-average precision: {np.around(prec * 100, 2)}%")
         print(f"Micro-average recall: {np.around(rec * 100, 2)}%")
         print(f"Micro-average f1 score: {np.around(f1 * 100, 2)}%")
+
 
         # plot the training loss and accuracy
         eff_epochs = len(H.history['val_loss'])
@@ -184,7 +218,7 @@ for file_name in file_names:
         #    layer_dims = [30, 5],
         #    activations = ['tanh', 'sigmoid'],
         #    target_accuracy = 0.65,
-        #    test_set = (X_test, Y_test),
+        #    test_set = (X_val, Y_val),
         #    plots = True 
         #    )
         
@@ -202,11 +236,11 @@ for file_name in file_names:
         #train_accuracy = correct_predictions / X.shape[1]
 
         ## calculate test accuracy
-        #Yhat = np.squeeze(np.around(nn_model.predict(X_test), decimals = 0))
+        #Yhat = np.squeeze(np.around(nn_model.predict(X_val), decimals = 0))
         #Yhat = Yhat.astype('int')
         #correct_predictions = np.sum(np.asarray([reduce(
-        #    lambda z, w: z and w, x) for x in np.equal(Y_test.T, Yhat.T)]))
-        #test_accuracy = correct_predictions / X_test.shape[1]
+        #    lambda z, w: z and w, x) for x in np.equal(Y_val.T, Yhat.T)]))
+        #test_accuracy = correct_predictions / X_val.shape[1]
 
         #print("Training complete!")
         #print(f"Training accuracy: {np.around(train_accuracy * 100, 2)}%")
