@@ -86,6 +86,7 @@ data_path = os.path.join(home_dir, "pCloudDrive", "Public Folder",
 
 # multiplier for positive targets in binary cross entropy
 # forces higher recall and lower precision
+# more complex model -> larger multiplier
 POS_WEIGHT = 10
 
 for k in np.arange(4, 15):
@@ -178,10 +179,10 @@ for k in np.arange(4, 15):
             v_preds = np.asarray([multi_label_bins(prob, THRESHOLD) 
                 for prob in v_probs])
 
-            v_acc = multi_label_accuracy(Y_val, preds)
-            v_prec = precision_score(Y_val, preds, average = 'micro')
-            v_rec = recall_score(Y_val, preds, average = 'micro')
-            v_f1 = f1_score(Y_val, preds, average = 'micro')
+            v_acc = multi_label_accuracy(Y_val, v_preds)
+            v_prec = precision_score(Y_val, v_preds, average = 'micro')
+            v_rec = recall_score(Y_val, v_preds, average = 'micro')
+            v_f1 = f1_score(Y_val, v_preds, average = 'micro')
             
             print("")
             print("TRAINING DATA")
