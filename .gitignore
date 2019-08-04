@@ -1,6 +1,6 @@
 *.csv
 *.pickle
-elmo/*
+pretrained_elmo/*
 *~
 __pycache__/*
 .ipynb_checkpoints/*
