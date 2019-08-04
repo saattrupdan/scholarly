@@ -1,60 +1,153 @@
-##### TRAINING LOG #####
+~~~ arxiv_sample_1000 ~ 2019-08-04 00:42:11.129949 ~~~
+Pos_weight value: 2
+Threshold value: 80.0%
+
+TRAINING DATA
+Multi-label accuracy: 9.6%
+Micro-average precision: 41.75%
+Micro-average recall: 35.82%
+Micro-average f1 score: 38.56%
+
+TEST DATA
+Multi-label accuracy: 3.33%
+Micro-average precision: 24.25%
+Micro-average recall: 19.5%
+Micro-average f1 score: 21.62%
 
 
-~~~ arxiv_sample_1000 ~~~
-30 hidden neurons, no confidence:
-  target cost  =  0.10
-  accuracy     =  99.7%
-  time         =  ~5m
+~~~ arxiv_sample_5000 ~ 2019-08-04 00:47:07.467835 ~~~
+Pos_weight value: 2
+Threshold value: 80.0%
 
-30 hidden neurons, with confidence 10:
-  target cost  =  0.10 (didn't reach it)
-  accuracy     =  97.7%
-  time         =  ~3m
+TRAINING DATA
+Multi-label accuracy: 16.04%
+Micro-average precision: 53.21%
+Micro-average recall: 42.37%
+Micro-average f1 score: 47.18%
 
-30 hidden neurons, with confidence 100:
-  target cost  =  0.10
-  accuracy     =  99.6%
-  time         =  ~4m
-
-30 hidden neurons, with confidence 100:
-  target cost  =  0.30
-  accuracy     =  96.0%
-  time         =  ~2m
-
-30 hidden neurons, with accumulated confidence:
-  target cost       =  0.30
-  training accuracy =  95.9%
-  time              =  ~2m
+TEST DATA
+Multi-label accuracy: 4.51%
+Micro-average precision: 36.09%
+Micro-average recall: 25.61%
+Micro-average f1 score: 29.96%
 
 
-~~~ arxiv_sample_5000 ~~~
-30 hidden neurons, no confidence, no infinity:
-  target cost  =  0.10 (didn't reach it)
-  accuracy     =  91.1%
-  time         =  ~2h3m
+~~~ arxiv_sample_10000 ~ 2019-08-04 00:55:57.210209 ~~~
+Pos_weight value: 2
+Threshold value: 80.0%
 
-30 hidden neurons, with accumulated confidence:
-  target cost       =  0.30
-  training accuracy =  94.5%
-  test accuracy     =  
-  time              =  ~2h27m
+TRAINING DATA
+Multi-label accuracy: 15.72%
+Micro-average precision: 50.15%
+Micro-average recall: 40.36%
+Micro-average f1 score: 44.72%
 
-150 hidden neurons, with accumulated confidence:
-  target cost  =  0.30
-  accuracy     =  94.7%
-  time         =  ~4h
-
-
-~~~ arxiv_sample_10000 ~~~
-30 hidden neurons, with accumulated confidence:
-  target training accuracy  =  75.0%
-  test accuracy             =  51.5%
-  time                      =  ~3h27m
+TEST DATA
+Multi-label accuracy: 7.45%
+Micro-average precision: 38.28%
+Micro-average recall: 27.29%
+Micro-average f1 score: 31.87%
 
 
-~~~ arxiv_sample_25000 ~~~
-30 hidden neurons, with accumulated confidence:
-  target training accuracy  =  75.0%
-  test accuracy             =  
-  time                      =  
+~~~ arxiv_sample_25000 ~ 2019-08-04 01:16:37.427917 ~~~
+Pos_weight value: 2
+Threshold value: 80.0%
+
+TRAINING DATA
+Multi-label accuracy: 13.84%
+Micro-average precision: 47.98%
+Micro-average recall: 39.0%
+Micro-average f1 score: 43.03%
+
+TEST DATA
+Multi-label accuracy: 7.91%
+Micro-average precision: 42.39%
+Micro-average recall: 30.95%
+Micro-average f1 score: 35.78%
+
+
+~~~ arxiv_sample_50000 ~ 2019-08-04 01:54:49.554138 ~~~
+Pos_weight value: 2
+Threshold value: 80.0%
+
+TRAINING DATA
+Multi-label accuracy: 13.47%
+Micro-average precision: 45.7%
+Micro-average recall: 37.98%
+Micro-average f1 score: 41.48%
+
+TEST DATA
+Multi-label accuracy: 7.97%
+Micro-average precision: 42.89%
+Micro-average recall: 31.68%
+Micro-average f1 score: 36.44%
+
+
+~~~ arxiv_sample_1000 ~ 2019-08-04 08:17:09.265807 ~~~
+Pos_weight value: 3
+Threshold value: 80.0%
+
+TRAINING DATA
+Multi-label accuracy: 14.4%
+Micro-average precision: 47.91%
+Micro-average recall: 44.69%
+Micro-average f1 score: 46.24%
+
+TEST DATA
+Multi-label accuracy: 3.01%
+Micro-average precision: 24.63%
+Micro-average recall: 20.87%
+Micro-average f1 score: 22.59%
+
+
+~~~ arxiv_sample_5000 ~ 2019-08-04 08:21:39.643769 ~~~
+Pos_weight value: 3
+Threshold value: 80.0%
+
+TRAINING DATA
+Multi-label accuracy: 15.62%
+Micro-average precision: 50.02%
+Micro-average recall: 44.24%
+Micro-average f1 score: 46.95%
+
+TEST DATA
+Multi-label accuracy: 5.1%
+Micro-average precision: 36.33%
+Micro-average recall: 28.77%
+Micro-average f1 score: 32.11%
+
+
+~~~ arxiv_sample_10000 ~ 2019-08-04 08:32:51.451564 ~~~
+Pos_weight value: 3
+Threshold value: 80.0%
+
+TRAINING DATA
+Multi-label accuracy: 15.24%
+Micro-average precision: 48.11%
+Micro-average recall: 43.93%
+Micro-average f1 score: 45.92%
+
+TEST DATA
+Multi-label accuracy: 6.34%
+Micro-average precision: 37.44%
+Micro-average recall: 30.89%
+Micro-average f1 score: 33.85%
+
+
+~~~ arxiv_sample_25000 ~ 2019-08-04 09:15:18.286083 ~~~
+Pos_weight value: 3
+Threshold value: 80.0%
+
+TRAINING DATA
+Multi-label accuracy: 14.28%
+Micro-average precision: 48.54%
+Micro-average recall: 43.63%
+Micro-average f1 score: 45.95%
+
+TEST DATA
+Multi-label accuracy: 7.25%
+Micro-average precision: 41.3%
+Micro-average recall: 33.41%
+Micro-average f1 score: 36.94%
+
+

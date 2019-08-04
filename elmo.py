@@ -15,9 +15,9 @@ import tensorflow as tf
 
 
 def download_elmo_model():
-    ''' Download the pre-trained ELMo model and store it in /elmo.'''
+    ''' Download the pre-trained ELMo model and store it in /pretrained_elmo.'''
 
-    if not os.path.isdir("elmo"):
+    if not os.path.isdir("pretrained_elmo"):
         # download ELMo model
         print("Downloading compressed ELMo model...", end = " ")
         url = "https://tfhub.dev/google/elmo/2?tf-hub-format=compressed"
@@ -25,10 +25,10 @@ def download_elmo_model():
         print("Done!")
 
         # uncompress ELMo model
-        print("Uncompressing into the 'elmo' directory...", end = " ")
-        os.system("mkdir elmo") # create directory
+        print("Uncompressing into the 'pretrained_elmo' directory...", end = " ")
+        os.system("mkdir pretrained_elmo") # create directory
         with tarfile.open("elmo.tar.gz") as tar:
-            tar.extractall("elmo")
+            tar.extractall("pretrained_elmo")
         os.remove("elmo.tar.gz")
         print("Done!")
     else:
@@ -54,9 +54,13 @@ def extract(file_name, path = "data", batch_size = 10,
         print("File already ELMo'd.")
     else:
         # load the ELMo model
-        model = hub.Module("elmo", trainable = False)
+        model = hub.Module("pretrained_elmo", trainable = False)
                 
         print("Extracting ELMo features...")
+
+        # create directory for the temporary files
+        full_path = os.path.join(path, temp)
+        os.system(f"mkdir {full_path}")
         
         # infinite loop
         for i in it.count():
@@ -65,7 +69,7 @@ def extract(file_name, path = "data", batch_size = 10,
                 print("") # deal with \r
                 sys.exit('Doomsday clock ticked out.\n')
 
-            full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
+            full_path = os.path.join(path, 'temp',  f"{file_name}_elmo_{i}.csv")
             if not os.path.isfile(full_path):
                 # open tensorflow session
                 with tf.compat.v1.Session() as sess:
@@ -88,7 +92,7 @@ def extract(file_name, path = "data", batch_size = 10,
                     
                     # create empty file to reserve it
                     temp_file_name = f"{file_name}_elmo_{i}.csv"
-                    full_path = os.path.join(path, temp_file_name)
+                    full_path = os.path.join(path, 'temp', temp_file_name)
                     open(full_path, 'a').close()
                 
                     # initialise session
@@ -145,7 +149,7 @@ def extract(file_name, path = "data", batch_size = 10,
                     if i % 100 == 0:
                         print(f"{i} files merged...", end = "\r")
                     try:
-                        full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
+                        full_path = os.path.join(path, 'temp', f"{file_name}_elmo_{i}.csv")
                         with open(full_path, "rb") as file_in:
                             shutil.copyfileobj(file_in, file_out)
                     except IOError:
@@ -158,7 +162,7 @@ def extract(file_name, path = "data", batch_size = 10,
             print("Removing temporary files...")
             for i in it.count():
                 try:
-                    full_path = os.path.join(path, f"{file_name}_elmo_{i}.csv")
+                    full_path = os.path.join(path, 'temp', f"{file_name}_elmo_{i}.csv")
                     os.remove(full_path)
                 except IOError:
                     break
