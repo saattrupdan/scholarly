@@ -57,7 +57,7 @@ def weighted_binary_crossentropy(target, output):
     return tf.reduce_mean(loss, axis = -1)
 
 def multi_label_bins(prediction, threshold = 0.5):
-    ''' Transform probabilities of multilabel predictions into binary values. '''
+    ''' Transform probabilities of multi-label predictions into binary values. '''
     return (prediction > (max(prediction) * threshold)).astype('int')
 
 def multi_label_accuracy(y, yhat):
@@ -152,7 +152,7 @@ for k in np.arange(4, 15):
             print("Finding optimal threshold value... ")
 
             def get_acc(probabilities, threshold):
-            ''' Get multilabel accuracy from probabilities and threshold. '''
+                ''' Get multi-label accuracy from probabilities and threshold. '''
                 predictions = np.asarray([multi_label_bins(prob, threshold) 
                     for prob in probabilities])
                 return multi_label_accuracy(Y_train, predictions)
