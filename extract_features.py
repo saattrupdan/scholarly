@@ -15,7 +15,7 @@ else:
         [1000, 5000, 10000, 25000, 50000, 100000, 200000, 500000, 750000]] + ['arxiv']
 
 home_dir = str(Path.home())
-data_path = os.path.join(home_dir, "pCloudDrive", "Public Folder", "scholarly_data")
+data_path = os.path.join(home_dir, "pCloudDrive", "public_folder", "scholarly_data")
 
 cleaner.setup(path = data_path)
 elmo.download_elmo_model()
@@ -33,7 +33,7 @@ for file_name in file_names:
     elmo.extract(
         file_name = file_name,
         path = data_path,
-        batch_size = 20,
+        batch_size = 10,
         doomsday_clock = 50,
         confirmation = True
         )

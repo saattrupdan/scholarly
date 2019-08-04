@@ -68,11 +68,11 @@ def setup(path = "data"):
         print("cats.csv is already downloaded.")
     
     # download test set
-    full_path = os.path.join(path, "arxiv_test_set.csv")
+    full_path = os.path.join(path, "arxiv_val_set.csv")
     if not os.path.isfile(full_path):
-        wget.download(url_start + "arxiv_test_set.csv", out = full_path)
+        wget.download(url_start + "arxiv_val_set.csv", out = full_path)
     else:
-        print("arxiv_test_set.csv is already downloaded.")
+        print("arxiv_val_set.csv is already downloaded.")
 
 
 def download_papers(file_name, path = "data"):
