@@ -1,7 +1,7 @@
 import numpy as np
 import itertools as it # handling iterators like count()
 import time # used for sleep()
-import shutil # enables copying data without using memory with copyfileobj()
+import shutil # copying data with copyfileobj() and removing with rmtree()
 import os # manipulation of file system
 import sys # used for exit()
 import wget # for downloading files
@@ -15,7 +15,7 @@ import tensorflow as tf
 
 
 def download_elmo_model():
-    ''' Download the pre-trained ELMo model and store it in /pretrained_elmo.'''
+    ''' Download the pre-trained ELMo model and store it.'''
 
     if not os.path.isdir("pretrained_elmo"):
         # download ELMo model
@@ -25,8 +25,9 @@ def download_elmo_model():
         print("Done!")
 
         # uncompress ELMo model
-        print("Uncompressing into the 'pretrained_elmo' directory...", end = " ")
-        os.system("mkdir pretrained_elmo") # create directory
+        print("Uncompressing into the 'pretrained_elmo' directory...",
+            end = " ")
+        os.system("mkdir pretrained_elmo")
         with tarfile.open("elmo.tar.gz") as tar:
             tar.extractall("pretrained_elmo")
         os.remove("elmo.tar.gz")
@@ -37,7 +38,8 @@ def download_elmo_model():
 
 def extract(file_name, path = "data", batch_size = 10,
         doomsday_clock = np.inf, confirmation = False):
-    ''' Extract ELMo features from file and store them as a csv file.
+    '''
+    Extract ELMo features from file and store them as a csv file.
 
     INPUT:
         str file_name       =   name of file, without file extension
@@ -47,7 +49,8 @@ def extract(file_name, path = "data", batch_size = 10,
         bool confirmation   =   prompt user before merging batches.
                                 this is helpful when prototyping,
                                 as otherwise it'll merge whatever
-                                it has when aborting script'''
+                                it has when aborting script
+    '''
     
     full_path = os.path.join(path, f"{file_name}_elmo.csv")
     if os.path.isfile(full_path):
@@ -59,9 +62,9 @@ def extract(file_name, path = "data", batch_size = 10,
         print("Extracting ELMo features...")
 
         # create directory for the temporary files
-        full_path = os.path.join(path, f'{file_name}_temp')
-        if not os.path.isdir(full_path):
-            os.system(f"mkdir {full_path}")
+        temp_dir = os.path.join(path, f'{file_name}_elmo_temp')
+        if not os.path.isdir(temp_dir):
+            os.system(f"mkdir {temp_dir}")
         
         # infinite loop
         for i in it.count():
@@ -70,7 +73,7 @@ def extract(file_name, path = "data", batch_size = 10,
                 print("") # deal with \r
                 sys.exit('Doomsday clock ticked out.\n')
 
-            full_path = os.path.join(path, f'{file_name}_temp',  f"{file_name}_elmo_{i}.csv")
+            full_path = os.path.join(temp_dir, f"{file_name}_elmo_{i}.csv")
             if not os.path.isfile(full_path):
                 # open tensorflow session
                 with tf.compat.v1.Session() as sess:
@@ -92,8 +95,8 @@ def extract(file_name, path = "data", batch_size = 10,
                         break
                     
                     # create empty file to reserve it
-                    temp_file_name = f"{file_name}_elmo_{i}.csv"
-                    full_path = os.path.join(path, f'{file_name}_temp', temp_file_name)
+                    full_path = os.path.join(temp_dir,
+                        f"{file_name}_elmo_{i}.csv")
                     open(full_path, 'a').close()
                 
                     # initialise session
@@ -117,12 +120,14 @@ def extract(file_name, path = "data", batch_size = 10,
                     # if doomsday_clock == np.inf then this stays np.inf
                     doomsday_clock -= 1
 
-            if doomsday_clock == np.inf:
-                print(f"ELMo processed {(i+1) * batch_size} papers... "
-                    , end = "\r")
-            else:
-                print(f"ELMo processed {(i+1) * batch_size} papers... " \
-                    f"Doomsday clock at {doomsday_clock}...", end = "\r")
+                    if doomsday_clock == np.inf:
+                        print(f"ELMo processed {(i+1) * batch_size} " \ 
+                              f"papers...", end = "\r")
+                    else:
+                        print(f"ELMo processed {(i+1) * batch_size} " \
+                              f"papers... Doomsday clock at " \
+                              f"{doomsday_clock}...", end = "\r")
+
 
         print("") # to deal with \r
         
@@ -133,8 +138,8 @@ def extract(file_name, path = "data", batch_size = 10,
             cont = 'y'
 
         while cont not in {'y','n'}:
-            cont = input('Processed all batches. Merge them all' \
-                         ' and delete batches? (y/n) \n > ')
+            cont = input('Processed all batches. Merge them all ' \
+                         'and delete batches? (y/n) \n > ')
             if cont not in {'y','n'}:
                 print("Please answer 'y' for yes or 'n' for no.")
         
@@ -150,7 +155,7 @@ def extract(file_name, path = "data", batch_size = 10,
                     if i % 100 == 0:
                         print(f"{i} files merged...", end = "\r")
                     try:
-                        full_path = os.path.join(path, f'{file_name}_temp',
+                        full_path = os.path.join(temp_dir,
                             f"{file_name}_elmo_{i}.csv")
                         with open(full_path, "rb") as file_in:
                             shutil.copyfileobj(file_in, file_out)
@@ -162,13 +167,7 @@ def extract(file_name, path = "data", batch_size = 10,
 
             # remove all the temporary batch files
             print("Removing temporary files...")
-            for i in it.count():
-                try:
-                    full_path = os.path.join(path, f'{file_name}_temp',
-                        f"{file_name}_elmo_{i}.csv")
-                    os.remove(full_path)
-                except IOError:
-                    break
+            shutil.rmtree(temp_dir)
             print("Removal complete.")
 
         print("All done with ELMo feature extraction!")

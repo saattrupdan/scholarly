@@ -5,7 +5,7 @@ import re # regular expressions
 import spacy as sp # used for lemmatising text
 import wget # downloading files
 import itertools as it # handling iterators like count()
-import shutil # enables copying data without using memory with copyfileobj()
+import shutil # copying data with copyfileobj() and removing with rmtree()
 import warnings # allows suppression of warnings
 import csv # enables QUOTE_ALL to keep commas in lists when outputting
 
@@ -146,13 +146,17 @@ def lemmatise_file(file_name, batch_size = 1000, path = "data",
 
     print("Cleaning precleaned file...")
     nlp = sp.load('en', disable=['parser', 'ner'])
-    
+        
+    # create directory for the temporary files
+    temp_dir = os.path.join(path, f'{file_name}_clean_temp')
+    if not os.path.isdir(temp_dir):
+        os.system(f"mkdir {temp_dir}")
+
     for i in it.count():
-        full_path = os.path.join(path, f"{file_name}_clean_{i}.csv")
+        full_path = os.path.join(temp_dir, f"{file_name}_clean_{i}.csv")
         if not os.path.isfile(full_path):
             try:
                 full_path = os.path.join(path, f"{file_name}_preclean.csv")
-
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     batch = np.loadtxt(
@@ -168,7 +172,8 @@ def lemmatise_file(file_name, batch_size = 1000, path = "data",
                         token in nlp(text)])) for text in batch]
                     )
                 
-                full_path = os.path.join(path, f'{file_name}_clean_{i}.csv')
+                full_path = os.path.join(temp_dir,
+                    f'{file_name}_clean_{i}.csv')
                 np.savetxt(full_path, batch_arr, delimiter = ',', fmt = '%s')
                 
                 print(f"Cleaned {(i+1) * batch_size} papers...", end = "\r")
@@ -184,7 +189,8 @@ def lemmatise_file(file_name, batch_size = 1000, path = "data",
         cont = 'y'
 
     while cont not in {'y','n'}:
-        cont = input('Processed all batches. Merge them all and delete batches? (y/n) \n > ')
+        cont = input('Processed all batches. Merge them all and ' \
+                     'delete batches? (y/n) \n > ')
         if cont not in {'y','n'}:
             print("Please answer 'y' for yes or 'n' for no.")
     
@@ -201,7 +207,8 @@ def lemmatise_file(file_name, batch_size = 1000, path = "data",
                 if i % 100 == 0 and i > 0:
                     print(f"{i} files merged...", end = "\r")
                 try:
-                    full_path = os.path.join(path, f"{file_name}_clean_{i}.csv")
+                    full_path = os.path.join(temp_dir,
+                        f"{file_name}_clean_{i}.csv")
                     with open(full_path, "rb") as file_in:
                         shutil.copyfileobj(file_in, file_out)
                 except IOError:
@@ -211,12 +218,7 @@ def lemmatise_file(file_name, batch_size = 1000, path = "data",
         
         # remove all the temporary batch files
         print("Removing temporary files...")
-        for i in it.count():
-            try:
-                full_path = os.path.join(path, f"{file_name}_clean_{i}.csv")
-                os.remove(full_path)
-            except IOError:
-                break
+        shutil.rmtree(temp_dir)
 
         # remove precleaned file as we have the fully cleaned one
         try:
