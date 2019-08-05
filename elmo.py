@@ -73,6 +73,14 @@ def extract(file_name, path = "data", batch_size = 10,
                 print("") # deal with \r
                 sys.exit('Doomsday clock ticked out.\n')
 
+            if doomsday_clock == np.inf:
+                print(f"ELMo processed {(i+1) * batch_size} " \
+                      f"papers...", end = "\r")
+            else:
+                print(f"ELMo processed {(i+1) * batch_size} " \
+                      f"papers... Doomsday clock at " \
+                      f"{doomsday_clock}...", end = "\r")
+
             full_path = os.path.join(temp_dir, f"{file_name}_elmo_{i}.csv")
             if not os.path.isfile(full_path):
                 # open tensorflow session
@@ -119,15 +127,6 @@ def extract(file_name, path = "data", batch_size = 10,
                     # doomsday clock gets one step closer to doomsday
                     # if doomsday_clock == np.inf then this stays np.inf
                     doomsday_clock -= 1
-
-                    if doomsday_clock == np.inf:
-                        print(f"ELMo processed {(i+1) * batch_size} " \ 
-                              f"papers...", end = "\r")
-                    else:
-                        print(f"ELMo processed {(i+1) * batch_size} " \
-                              f"papers... Doomsday clock at " \
-                              f"{doomsday_clock}...", end = "\r")
-
 
         print("") # to deal with \r
         
