@@ -19,7 +19,7 @@ from keras.models import Sequential
 from keras.layers.core import Dense
 from keras.layers.core import Dropout
 from keras.callbacks import EarlyStopping
-from keras.optimizers import SGD
+from keras.utils.generic_utils import get_custom_objects
 
 # scores to evaluate models
 from sklearn.metrics import precision_score
@@ -103,7 +103,7 @@ if __name__ == '__main__':
     ACTIVATION = 'relu'
 
     # number of neurons in each hidden layer
-    NEURONS = 1024
+    NEURONS = [1024, 1024]
 
     # amount of dropout
     INPUT_DROPOUT = 0.2
@@ -119,8 +119,42 @@ if __name__ == '__main__':
     # gradient descent optimizer
     OPTIMIZER = 'nadam'
 
+    # maximum number of training epochs
+    MAX_EPOCHS = 1000000
+
     ###########################
 
+
+    # make keras recognise custom loss when importing models
+    get_custom_objects().update(
+        {'weighted_binary_crossentropy': weighted_binary_crossentropy}
+        )
+         
+    # load validation set
+    full_path = os.path.join(data_path, f"arxiv_val_set.csv")
+    val_df = pd.read_csv(full_path)
+    X_val = np.asarray(val_df.iloc[:, :1024])
+    Y_val = np.asarray(val_df.iloc[:, 1024:])
+
+    # initialise neural network
+    nn = Sequential()
+    nn.add(Dropout(INPUT_DROPOUT))
+    for neurons in NEURONS:
+        nn.add(Dense(neurons, activation = ACTIVATION))
+        nn.add(Dropout(HIDDEN_DROPOUT))
+    nn.add(Dense(153, activation = 'sigmoid'))
+
+    nn.compile(
+        loss = 'weighted_binary_crossentropy',
+        optimizer = OPTIMIZER,
+        )
+
+    early_stopping = EarlyStopping(
+        monitor = MONITORING,
+        patience = PATIENCE,
+        min_delta = 1e-4,
+        restore_best_weights = True
+        )
     
     for file_name in file_names:
         print("------------------------------------")
@@ -134,49 +168,22 @@ if __name__ == '__main__':
                 nn = pickle.load(pickle_in)
             print("Model already trained.")
         else:
-            # load validation set
-            full_path = os.path.join(data_path, f"arxiv_val_set.csv")
-            val_df = pd.read_csv(full_path)
-            X_val = np.asarray(val_df.iloc[:, :1024])
-            Y_val = np.asarray(val_df.iloc[:, 1024:])
-
             # fetch data
             full_path = os.path.join(data_path, f"{file_name}_1hot.csv")
             df = pd.read_csv(full_path)
             X_train = np.asarray(df.iloc[:, :1024])
             Y_train = np.asarray(df.iloc[:, 1024:])
 
-            max_epochs = 1000000
-
-            nn = Sequential()
-            nn.add(Dropout(INPUT_DROPOUT))
-            nn.add(Dense(NEURONS, activation = ACTIVATION))
-            nn.add(Dropout(HIDDEN_DROPOUT))
-            nn.add(Dense(NEURONS, activation = ACTIVATION))
-            nn.add(Dropout(HIDDEN_DROPOUT))
-            nn.add(Dense(153, activation = 'sigmoid'))
-
-            nn.compile(
-                loss = weighted_binary_crossentropy, 
-                optimizer = OPTIMIZER,
-                )
-
-            early_stopping = EarlyStopping(
-                monitor = MONITORING,
-                patience = PATIENCE,
-                min_delta = 1e-4,
-                restore_best_weights = True
-                )
-
+            # train neural network
             past = datetime.now()
             H = nn.fit(
-                    X_train, 
-                    Y_train,
-                    validation_data = (X_val, Y_val),
-                    epochs = max_epochs,
-                    batch_size = BATCH_SIZE,
-                    callbacks = [early_stopping]
-                    )
+                X_train, 
+                Y_train,
+                validation_data = (X_val, Y_val),
+                epochs = MAX_EPOCHS,
+                batch_size = BATCH_SIZE,
+                callbacks = [early_stopping]
+                )
             duration = datetime.now() - past
 
             # find optimal threshold value based on training data
@@ -234,7 +241,7 @@ Patience: {PATIENCE}
 Monitoring: {MONITORING}
 Optimizer: {OPTIMIZER}
 
-TRAINING DATA
+TRAINING SET 
 A0 score: {np.around(t_acc_0 * 100, 2)}%
 A1 score: {np.around(t_acc_1 * 100, 2)}%
 A2 score: {np.around(t_acc_2 * 100, 2)}%
@@ -243,7 +250,7 @@ Micro-average precision: {np.around(t_prec * 100, 2)}%
 Micro-average recall: {np.around(t_rec * 100, 2)}%
 Micro-average F1 score: {np.around(t_f1 * 100, 2)}%
 
-TEST DATA
+VALIDATION SET 
 A0 score: {np.around(v_acc_0 * 100, 2)}%
 A1 score: {np.around(v_acc_1 * 100, 2)}%
 A2 score: {np.around(v_acc_2 * 100, 2)}%
@@ -258,11 +265,11 @@ Micro-average F1 score: {np.around(v_f1 * 100, 2)}%\n '''
 
             # plot the training loss and accuracy
             eff_epochs = len(H.history['loss'])
-            N = np.arange(10, eff_epochs)
+            N = np.arange(0, eff_epochs)
             plt.style.use("ggplot")
             plt.figure()
-            plt.plot(N, H.history["loss"][10:], label = "train_loss")
-            plt.plot(N, H.history["val_loss"][10:], label = "val_loss")
+            plt.plot(N, H.history["loss"], label = "train_loss")
+            plt.plot(N, H.history["val_loss"], label = "val_loss")
             plt.title(file_name)
             plt.xlabel("Epochs")
             plt.ylabel("Loss")
@@ -271,7 +278,6 @@ Micro-average F1 score: {np.around(v_f1 * 100, 2)}%\n '''
             plt.savefig(full_path)
 
             # save model
-            #full_path = os.path.join(data_path, f'{file_name}_model.pickle')
-            #with open(full_path, 'wb') as pickle_out:
-            #    pickle.dump(nn, pickle_out)
-            
+            full_path = os.path.join(data_path, f'{file_name}_model.pickle')
+            with open(full_path, 'wb') as pickle_out:
+                pickle.dump(nn, pickle_out)
