@@ -96,22 +96,22 @@ if __name__ == '__main__':
 
     # multiplier for positive targets in binary cross entropy
     # forces larger recall and smaller precision
-    # relu needs smaller pos_weight than tanh
+    # relu seem to need smaller pos_weight than tanh
     POS_WEIGHT = 5
     
     # activation function for the hidden layers
     ACTIVATION = 'relu'
 
     # number of neurons in each hidden layer
-    NEURONS = 1024
+    NEURONS = [2048, 1024, 512]
 
     # amount of dropout
     INPUT_DROPOUT = 0.2
     HIDDEN_DROPOUT = 0.5
 
     # epochs allowed with no improvement
-    MONITORING = 'loss'
-    PATIENCE = 50
+    MONITORING = 'val_loss'
+    PATIENCE = 20
 
     # gradient descent batch size
     BATCH_SIZE = 512
@@ -122,114 +122,104 @@ if __name__ == '__main__':
     ###########################
 
     
-    hyperparams = it.product(
-        [512, 256, 1024, 128],
-        [1024, 2048],
-        )
-
     for file_name in file_names:
         print("------------------------------------")
         print(f"NOW PROCESSING: {file_name}")
         print("------------------------------------")
 
-        for (batch_size, neurons) in hyperparams:
-            BATCH_SIZE = batch_size
-            NEURONS = neurons
+        full_path = os.path.join(data_path,
+            f"{file_name}_model.pickle")
+        if os.path.isfile(full_path):
+            with open(full_path, 'rb') as pickle_in:
+                nn = pickle.load(pickle_in)
+            print("Model already trained.")
+        else:
+            # load validation set
+            full_path = os.path.join(data_path, f"arxiv_val_set.csv")
+            val_df = pd.read_csv(full_path)
+            X_val = np.asarray(val_df.iloc[:, :1024])
+            Y_val = np.asarray(val_df.iloc[:, 1024:])
 
-            full_path = os.path.join(data_path,
-                f"{file_name}_model.pickle")
-            if os.path.isfile(full_path):
-                with open(full_path, 'rb') as pickle_in:
-                    nn = pickle.load(pickle_in)
-                print("Model already trained.")
-            else:
-                # load validation set
-                full_path = os.path.join(data_path, f"arxiv_val_set.csv")
-                val_df = pd.read_csv(full_path)
-                X_val = np.asarray(val_df.iloc[:, :1024])
-                Y_val = np.asarray(val_df.iloc[:, 1024:])
+            # fetch data
+            full_path = os.path.join(data_path, f"{file_name}_1hot.csv")
+            df = pd.read_csv(full_path)
+            X_train = np.asarray(df.iloc[:, :1024])
+            Y_train = np.asarray(df.iloc[:, 1024:])
 
-                # fetch data
-                full_path = os.path.join(data_path, f"{file_name}_1hot.csv")
-                df = pd.read_csv(full_path)
-                X_train = np.asarray(df.iloc[:, :1024])
-                Y_train = np.asarray(df.iloc[:, 1024:])
+            max_epochs = 1000000
 
-                max_epochs = 1000000
-
-                nn = Sequential()
-                nn.add(Dropout(INPUT_DROPOUT))
-                nn.add(Dense(NEURONS, activation = ACTIVATION))
+            nn = Sequential()
+            nn.add(Dropout(INPUT_DROPOUT))
+            for neurons in NEURONS:
+                nn.add(Dense(neurons, activation = ACTIVATION))
                 nn.add(Dropout(HIDDEN_DROPOUT))
-                nn.add(Dense(NEURONS, activation = ACTIVATION))
-                nn.add(Dropout(HIDDEN_DROPOUT))
-                nn.add(Dense(153, activation = 'sigmoid'))
+            nn.add(Dense(153, activation = 'sigmoid'))
 
-                nn.compile(
-                    loss = weighted_binary_crossentropy, 
-                    optimizer = OPTIMIZER,
+            nn.compile(
+                loss = weighted_binary_crossentropy, 
+                optimizer = OPTIMIZER,
+                )
+
+            early_stopping = EarlyStopping(
+                monitor = MONITORING,
+                patience = PATIENCE,
+                min_delta = 1e-4,
+                restore_best_weights = True
+                )
+
+            past = datetime.now()
+            H = nn.fit(
+                    X_train, 
+                    Y_train,
+                    validation_data = (X_val, Y_val),
+                    epochs = max_epochs,
+                    batch_size = BATCH_SIZE,
+                    callbacks = [early_stopping]
                     )
+            duration = datetime.now() - past
 
-                early_stopping = EarlyStopping(
-                    monitor = MONITORING,
-                    patience = PATIENCE,
-                    min_delta = 1e-4,
-                    restore_best_weights = True
-                    )
+            # find optimal threshold value based on training data
+            print("")
+            print("Finding optimal threshold value...")
 
-                past = datetime.now()
-                H = nn.fit(
-                        X_train, 
-                        Y_train,
-                        validation_data = (X_val, Y_val),
-                        epochs = max_epochs,
-                        batch_size = BATCH_SIZE,
-                        callbacks = [early_stopping]
-                        )
-                duration = datetime.now() - past
+            THRESHOLD = 0.00
+            t_probs = np.asarray(nn.predict(X_train, batch_size = 32))
+            for i in np.arange(THRESHOLD, 1.00, 0.05):
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    current_f1 = threshold_f1(t_probs, THRESHOLD)
+                    new_f1 = threshold_f1(t_probs, THRESHOLD + i)
+                if new_f1 >= current_f1:
+                    THRESHOLD = np.around(THRESHOLD + i, 2)
+            print(f"Optimal threshold value is " \
+                  f"{np.around(THRESHOLD * 100, 2)}%")
 
-                # find optimal threshold value based on training data
-                print("")
-                print("Finding optimal threshold value...")
-
-                THRESHOLD = 0.00
-                t_probs = np.asarray(nn.predict(X_train, batch_size = 32))
-                for i in np.arange(THRESHOLD, 1.00, 0.05):
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")
-                        current_f1 = threshold_f1(t_probs, THRESHOLD)
-                        new_f1 = threshold_f1(t_probs, THRESHOLD + i)
-                    if new_f1 >= current_f1:
-                        THRESHOLD = np.around(THRESHOLD + i, 2)
-                print(f"Optimal threshold value is " \
-                      f"{np.around(THRESHOLD * 100, 2)}%")
-
-                # evaluate the network
-                print("Calculating scores...")
-                t_preds = np.asarray([multi_label_bins(prob, THRESHOLD) 
-                    for prob in t_probs])
-                t_acc_0 = multi_label_accuracy(Y_train, t_preds, leeway = 0)
-                t_acc_1 = multi_label_accuracy(Y_train, t_preds, leeway = 1)
-                t_acc_2 = multi_label_accuracy(Y_train, t_preds, leeway = 2)
-                t_acc_3 = multi_label_accuracy(Y_train, t_preds, leeway = 3)
-                t_prec = precision_score(Y_train, t_preds, average = 'micro')
-                t_rec = recall_score(Y_train, t_preds, average = 'micro')
-                t_f1 = f1_score(Y_train, t_preds, average = 'micro')
-                
-                v_probs = np.asarray(nn.predict(X_val, batch_size = 32))
-                v_preds = np.asarray([multi_label_bins(prob, THRESHOLD) 
-                    for prob in v_probs])
-                v_acc_0 = multi_label_accuracy(Y_val, v_preds)
-                v_acc_1 = multi_label_accuracy(Y_val, v_preds, leeway = 1)
-                v_acc_2 = multi_label_accuracy(Y_val, v_preds, leeway = 2)
-                v_acc_3 = multi_label_accuracy(Y_val, v_preds, leeway = 3)
-                v_prec = precision_score(Y_val, v_preds, average = 'micro')
-                v_rec = recall_score(Y_val, v_preds, average = 'micro')
-                v_f1 = f1_score(Y_val, v_preds, average = 'micro')
-                
-                # print and store scores
-                full_path = os.path.join(data_path, 'training_log.txt')
-                log_text = \
+            # evaluate the network
+            print("Calculating scores...")
+            t_preds = np.asarray([multi_label_bins(prob, THRESHOLD) 
+                for prob in t_probs])
+            t_acc_0 = multi_label_accuracy(Y_train, t_preds, leeway = 0)
+            t_acc_1 = multi_label_accuracy(Y_train, t_preds, leeway = 1)
+            t_acc_2 = multi_label_accuracy(Y_train, t_preds, leeway = 2)
+            t_acc_3 = multi_label_accuracy(Y_train, t_preds, leeway = 3)
+            t_prec = precision_score(Y_train, t_preds, average = 'micro')
+            t_rec = recall_score(Y_train, t_preds, average = 'micro')
+            t_f1 = f1_score(Y_train, t_preds, average = 'micro')
+            
+            v_probs = np.asarray(nn.predict(X_val, batch_size = 32))
+            v_preds = np.asarray([multi_label_bins(prob, THRESHOLD) 
+                for prob in v_probs])
+            v_acc_0 = multi_label_accuracy(Y_val, v_preds)
+            v_acc_1 = multi_label_accuracy(Y_val, v_preds, leeway = 1)
+            v_acc_2 = multi_label_accuracy(Y_val, v_preds, leeway = 2)
+            v_acc_3 = multi_label_accuracy(Y_val, v_preds, leeway = 3)
+            v_prec = precision_score(Y_val, v_preds, average = 'micro')
+            v_rec = recall_score(Y_val, v_preds, average = 'micro')
+            v_f1 = f1_score(Y_val, v_preds, average = 'micro')
+            
+            # print and store scores
+            full_path = os.path.join(data_path, 'training_log.txt')
+            log_text = \
 f'''\n\n ~~~ {file_name} ~ {datetime.now()} ~~~
 Training duration: {duration}
 Neurons in each layer: {NEURONS}
@@ -261,26 +251,26 @@ Micro-average precision: {np.around(v_prec * 100, 2)}%
 Micro-average recall: {np.around(v_rec * 100, 2)}%
 Micro-average F1 score: {np.around(v_f1 * 100, 2)}%\n '''
 
-                print(log_text)
-                with open(full_path, 'a+') as log_file:
-                    log_file.write(log_text)
+            print(log_text)
+            with open(full_path, 'a+') as log_file:
+                log_file.write(log_text)
 
-                # plot the training loss and accuracy
-                eff_epochs = len(H.history['loss'])
-                N = np.arange(10, eff_epochs)
-                plt.style.use("ggplot")
-                plt.figure()
-                plt.plot(N, H.history["loss"][10:], label = "train_loss")
-                plt.plot(N, H.history["val_loss"][10:], label = "val_loss")
-                plt.title(file_name)
-                plt.xlabel("Epochs")
-                plt.ylabel("Loss")
-                plt.legend()
-                full_path = os.path.join(data_path, f'{file_name}_plot.png')
-                plt.savefig(full_path)
+            # plot the training loss and accuracy
+            eff_epochs = len(H.history['loss'])
+            N = np.arange(10, eff_epochs)
+            plt.style.use("ggplot")
+            plt.figure()
+            plt.plot(N, H.history["loss"][10:], label = "train_loss")
+            plt.plot(N, H.history["val_loss"][10:], label = "val_loss")
+            plt.title(file_name)
+            plt.xlabel("Epochs")
+            plt.ylabel("Loss")
+            plt.legend()
+            full_path = os.path.join(data_path, f'{file_name}_plot.png')
+            plt.savefig(full_path)
 
-                # save model
-                #full_path = os.path.join(data_path, f'{file_name}_model.pickle')
-                #with open(full_path, 'wb') as pickle_out:
-                #    pickle.dump(nn, pickle_out)
-                
+            # save model
+            #full_path = os.path.join(data_path, f'{file_name}_model.pickle')
+            #with open(full_path, 'wb') as pickle_out:
+            #    pickle.dump(nn, pickle_out)
+            
