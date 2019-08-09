@@ -33,7 +33,7 @@ for file_name in file_names:
     elmo.extract(
         file_name = file_name,
         path = data_path,
-        batch_size = 10,
+        batch_size = 20,
         doomsday_clock = 50,
         confirmation = True
         )
