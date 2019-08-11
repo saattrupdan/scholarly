@@ -67,12 +67,14 @@ def setup(path = "data"):
     else:
         print("cats.csv is already downloaded.")
     
-    # download test set
-    full_path = os.path.join(path, "arxiv_val_set.csv")
-    if not os.path.isfile(full_path):
-        wget.download(url_start + "arxiv_val_set.csv", out = full_path)
-    else:
-        print("arxiv_val_set.csv is already downloaded.")
+    # download validation sets
+    for fname in ['arxiv_val', 'arxiv_val_big']:
+        for onehot_name in ['1hot', '1hot_agg']:
+            full_path = os.path.join(path, f"{fname}_{onehot_name}.csv")
+            if not os.path.isfile(full_path):
+                wget.download(url_start + f"{fname}_{onehot_name}.csv", out = full_path)
+            else:
+                print(f"{fname}_{onehot_name}.csv is already downloaded.")
 
 
 def download_papers(file_name, path = "data"):
@@ -94,12 +96,7 @@ def get_preclean_text(file_name, path = "data"):
     print("Loading in raw file...")
 
     full_path = os.path.join(path, f"{file_name}.csv")
-    clean_cats_with_path = lambda x: clean_cats(x, path = path)
-    df = pd.read_csv(
-        full_path, 
-        usecols = ['title', 'abstract', 'category'],
-        converters = {'category' : clean_cats_with_path}
-        )
+    df = pd.read_csv(full_path, usecols = ['title', 'abstract', 'category'])
 
     print("Raw file loaded!")
     print("Precleaning raw file...")
@@ -124,23 +121,15 @@ def get_preclean_text(file_name, path = "data"):
     
     # remove whitespaces
     df['clean_text'] = df['clean_text'].apply(lambda x:' '.join(x.split()))
-    
-    # save array with cleaned texts
-    full_path = os.path.join(path, f"{file_name}_preclean.csv")
-    preclean_arr = np.asarray(df['clean_text'])
-    np.savetxt(full_path, preclean_arr, fmt = '%s', encoding = 'utf-8')
-    
-    # save dataframe with categories
-    full_path = os.path.join(path, f"{file_name}_cats.csv")
-    df['category'].to_csv(full_path, index = False, header = False,
+
+    full_path = os.path.join(path, f'{file_name}_preclean.csv')
+    df.to_csv(full_path, index = False, header = False,
         quoting = csv.QUOTE_ALL)
-
-    del df, preclean_arr
-
+    
     print("Preclean complete!")
     
 
-def lemmatise_file(file_name, batch_size = 1000, path = "data",
+def lemmatise_file(file_name, batch_size = 1024, path = "data",
     confirmation = True):
     ''' Lemmatise file in batches, and save to csv. '''
 
@@ -152,33 +141,21 @@ def lemmatise_file(file_name, batch_size = 1000, path = "data",
     if not os.path.isdir(temp_dir):
         os.system(f"mkdir {temp_dir}")
 
-    for i in it.count():
+    full_path = os.path.join(path, f"{file_name}_preclean.csv")
+    batches = pd.read_csv(full_path, chunksize = batch_size, header = None)
+
+    for (i, batch) in enumerate(batches):
         full_path = os.path.join(temp_dir, f"{file_name}_clean_{i}.csv")
         if not os.path.isfile(full_path):
-            try:
-                full_path = os.path.join(path, f"{file_name}_preclean.csv")
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    batch = np.loadtxt(
-                        fname = full_path,
-                        delimiter = '\n',
-                        skiprows = i * batch_size,
-                        max_rows = batch_size,
-                        dtype = object
-                        )
-             
-                batch_arr = np.asarray(
-                    [' '.join(np.asarray([token.lemma_ for 
-                        token in nlp(text)])) for text in batch]
-                    )
-                
-                full_path = os.path.join(temp_dir,
-                    f'{file_name}_clean_{i}.csv')
-                np.savetxt(full_path, batch_arr, delimiter = ',', fmt = '%s')
-                
-                print(f"Cleaned {(i+1) * batch_size} papers...", end = "\r")
-            except:
-                break
+            clean_text = np.asarray([' '.join(np.asarray(
+                [token.lemma_ for token in nlp(text)]))
+                for text in batch.iloc[:, 1]])
+            batch.iloc[0 : clean_text.size, 1] = clean_text
+
+            full_path = os.path.join(temp_dir, f'{file_name}_clean_{i}.csv')
+            batch.to_csv(full_path, index = False, header = None)
+            
+            print(f"Cleaned {(i+1) * batch_size} papers...", end = "\r")
 
     print("Cleaning done!" + " " * 25)
     
@@ -199,8 +176,6 @@ def lemmatise_file(file_name, batch_size = 1000, path = "data",
         print("Merging files...")
 
         # concatenate all temporary csv files into a single csv file
-        # this uses the shutil.copyfileobj() function, which doesn't
-        # store the files in memory
         full_path = os.path.join(path, f"{file_name}_clean.csv")
         with open(full_path, 'wb+') as file_out:
             for i in it.count():

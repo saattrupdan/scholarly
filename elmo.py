@@ -148,8 +148,6 @@ def extract(file_name, path = "data", batch_size = 10,
             print("Merging files...")
             
             # concatenate all temporary csv files into a single csv file
-            # this uses the shutil.copyfileobj() function, which doesn't
-            # store the files in RAM
             full_path = os.path.join(path, f"{file_name}_elmo.csv")
             with open(full_path, 'wb+') as file_out:
                 for i in it.count():
