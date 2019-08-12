@@ -85,7 +85,7 @@ if __name__ == '__main__':
         file_names = sys.argv[1:]
     else:
         file_names = [f'arxiv_sample_{i}' for i in
-            [1000, 5000, 10000, 25000, 50000, 100000]]
+            [1000, 5000, 10000, 25000, 50000, 200000]]
 
     home_dir = str(Path.home())
     data_path = os.path.join(home_dir, "pCloudDrive", "public_folder",
