@@ -31,7 +31,7 @@ from sklearn.metrics import f1_score
 
 
 class BatchGenerator(Sequence):
-    ''' Generator clas for training neural networks in batches. '''
+    ''' Generator class for training neural networks in batches. '''
     
     def __init__(self, data_path, file_name, labels, batch_size):
         self.data_path = data_path
@@ -41,7 +41,7 @@ class BatchGenerator(Sequence):
 
     def __len__(self):
         ''' Return number of batches per epoch. '''
-        return np.ceil(self.labels.shape[0] / self.batch_size).astype('int')
+        return np.ceil(self.labels.shape[0] / self.batch_size).astype(int)
 
     def __getitem__(self, idx):
         ''' Return batch of a given index. '''
@@ -52,7 +52,8 @@ class BatchGenerator(Sequence):
                     nrows = self.batch_size,
                     na_filter = False
                     )
-        Y_batch = self.labels[idx * self.batch_size : (idx + 1) * self.batch_size, :]
+        Y_batch = self.labels[idx * self.batch_size : (idx + 1) * 
+            self.batch_size, :]
         return (X_batch, Y_batch)
 
 
@@ -100,7 +101,6 @@ def threshold_f1(probabilities, threshold, Y_train):
     predictions = np.asarray([multi_label_bins(prob, threshold) 
         for prob in probabilities])
     return f1_score(Y_train, predictions, average = 'micro')
-            
 
 def train_model(file_names, info, data_path = 'data', POS_WEIGHT = 5,
     ACTIVATION = 'elu', NEURONS = [1024, 1024], INPUT_DROPOUT = 0.2,
@@ -109,12 +109,10 @@ def train_model(file_names, info, data_path = 'data', POS_WEIGHT = 5,
     save_model = False):
 
     # load validation set
-    X_path = os.path.join(data_path, f'arxiv_val_big_elmo.csv')
-    Y_path = os.path.join(data_path, f'arxiv_val_big_{info["1hot"]}.csv')
-    X_val = np.asarray(pd.read_csv(X_path))
-    Y_val = np.asarray(pd.read_csv(Y_path))[:, 1:]
-
-    print(X_val.shape)
+    X_path = os.path.join(data_path, f"{info['val']}_elmo.csv")
+    Y_path = os.path.join(data_path, f"{info['val']}_{info['1hot']}.csv")
+    #X_val = np.asarray(pd.read_csv(X_path))
+    #Y_val = np.asarray(pd.read_csv(Y_path))[:, 1:]
 
     for file_name in file_names:
         print("------------------------------------")
@@ -139,7 +137,8 @@ def train_model(file_names, info, data_path = 'data', POS_WEIGHT = 5,
             nn = Model(inputs = inputs, outputs = outputs)
             
             # make keras recognise custom loss when importing models
-            loss_fn = lambda x, y: weighted_binary_crossentropy(x, y, POS_WEIGHT)
+            loss_fn = lambda x, y: weighted_binary_crossentropy(x, y,
+                POS_WEIGHT)
             get_custom_objects().update(
                 {'weighted_binary_crossentropy': loss_fn}
                 )
@@ -157,8 +156,9 @@ def train_model(file_names, info, data_path = 'data', POS_WEIGHT = 5,
                 )
 
             # get training labels
-            full_path = os.path.join(data_path, f"{file_name}_{info['1hot']}.csv")
-            Y_train = np.asarray(pd.read_csv(full_path))[:, 1:]
+            full_path = os.path.join(data_path,
+                f"{file_name}_{info['1hot']}.csv")
+            Y_train = np.asarray(pd.read_csv(full_path))[:, 1:].astype(int)
 
             # train neural network
             past = datetime.now()
@@ -170,7 +170,7 @@ def train_model(file_names, info, data_path = 'data', POS_WEIGHT = 5,
                             )
             H = nn.fit_generator(
                 generator = batch_gen,
-                validation_data = (X_val, Y_val),
+                #validation_data = (X_val, Y_val),
                 epochs = MAX_EPOCHS,
                 callbacks = [early_stopping],
                 use_multiprocessing = True
@@ -200,7 +200,8 @@ def train_model(file_names, info, data_path = 'data', POS_WEIGHT = 5,
                 else:
                     THRESHOLD = threshold - step_size
                     break
-            print(f"Optimal threshold value is {np.around(THRESHOLD * 100, 2)}%")
+            print(f"Optimal threshold value is " \
+                  f"{np.around(THRESHOLD * 100, 2)}%")
 
             # evaluate the network
             print("Calculating scores...")
@@ -214,16 +215,16 @@ def train_model(file_names, info, data_path = 'data', POS_WEIGHT = 5,
             t_rec = recall_score(Y_train, t_preds, average = 'micro')
             t_f1 = f1_score(Y_train, t_preds, average = 'micro')
             
-            v_probs = np.asarray(nn.predict(X_val, batch_size = 32))
-            v_preds = np.asarray([multi_label_bins(prob, THRESHOLD) 
-                for prob in v_probs])
-            v_acc_0 = multi_label_accuracy(Y_val, v_preds)
-            v_acc_1 = multi_label_accuracy(Y_val, v_preds, leeway = 1)
-            v_acc_2 = multi_label_accuracy(Y_val, v_preds, leeway = 2)
-            v_acc_3 = multi_label_accuracy(Y_val, v_preds, leeway = 3)
-            v_prec = precision_score(Y_val, v_preds, average = 'micro')
-            v_rec = recall_score(Y_val, v_preds, average = 'micro')
-            v_f1 = f1_score(Y_val, v_preds, average = 'micro')
+            #v_probs = np.asarray(nn.predict(X_val, batch_size = 32))
+            #v_preds = np.asarray([multi_label_bins(prob, THRESHOLD) 
+            #    for prob in v_probs])
+            #v_acc_0 = multi_label_accuracy(Y_val, v_preds)
+            #v_acc_1 = multi_label_accuracy(Y_val, v_preds, leeway = 1)
+            #v_acc_2 = multi_label_accuracy(Y_val, v_preds, leeway = 2)
+            #v_acc_3 = multi_label_accuracy(Y_val, v_preds, leeway = 3)
+            #v_prec = precision_score(Y_val, v_preds, average = 'micro')
+            #v_rec = recall_score(Y_val, v_preds, average = 'micro')
+            #v_f1 = f1_score(Y_val, v_preds, average = 'micro')
             
             # print and store scores
             full_path = os.path.join(data_path, 'training_log.txt')
@@ -249,16 +250,16 @@ A2 score: {np.around(t_acc_2 * 100, 2)}%
 A3 score: {np.around(t_acc_3 * 100, 2)}%
 Micro-average precision: {np.around(t_prec * 100, 2)}%
 Micro-average recall: {np.around(t_rec * 100, 2)}%
-Micro-average F1 score: {np.around(t_f1 * 100, 2)}%
-
-VALIDATION SET 
-A0 score: {np.around(v_acc_0 * 100, 2)}%
-A1 score: {np.around(v_acc_1 * 100, 2)}%
-A2 score: {np.around(v_acc_2 * 100, 2)}%
-A3 score: {np.around(v_acc_3 * 100, 2)}%
-Micro-average precision: {np.around(v_prec * 100, 2)}%
-Micro-average recall: {np.around(v_rec * 100, 2)}%
-Micro-average F1 score: {np.around(v_f1 * 100, 2)}%\n '''
+Micro-average F1 score: {np.around(t_f1 * 100, 2)}%\n'''
+#
+#VALIDATION SET 
+#A0 score: {np.around(v_acc_0 * 100, 2)}%
+#A1 score: {np.around(v_acc_1 * 100, 2)}%
+#A2 score: {np.around(v_acc_2 * 100, 2)}%
+#A3 score: {np.around(v_acc_3 * 100, 2)}%
+#Micro-average precision: {np.around(v_prec * 100, 2)}%
+#Micro-average recall: {np.around(v_rec * 100, 2)}%
+#Micro-average F1 score: {np.around(v_f1 * 100, 2)}%\n '''
 
             print(log_text)
             with open(full_path, 'a+') as log_file:
@@ -270,7 +271,7 @@ Micro-average F1 score: {np.around(v_f1 * 100, 2)}%\n '''
             plt.style.use("ggplot")
             plt.figure()
             plt.plot(N, H.history["loss"], label = "train_loss")
-            plt.plot(N, H.history["val_loss"], label = "val_loss")
+            #plt.plot(N, H.history["val_loss"], label = "val_loss")
             plt.title(file_name)
             plt.xlabel("Epochs")
             plt.ylabel("Loss")
@@ -280,7 +281,8 @@ Micro-average F1 score: {np.around(v_f1 * 100, 2)}%\n '''
 
             # save model
             if save_model:
-                full_path = os.path.join(data_path, f'{file_name}_model.pickle')
+                full_path = os.path.join(data_path,
+                    f'{file_name}_model.pickle')
                 with open(full_path, 'wb') as pickle_out:
                     pickle.dump(nn, pickle_out)
 
@@ -288,29 +290,32 @@ Micro-average F1 score: {np.around(v_f1 * 100, 2)}%\n '''
 if __name__ == '__main__':
 
     home_dir = str(Path.home())
-    data_path = os.path.join(home_dir, "pCloudDrive", "public_folder", "scholarly_data")
+    data_path = os.path.join(home_dir, "pCloudDrive", "public_folder",
+        "scholarly_data")
     
     # set list of file_names
     if len(sys.argv) > 1:
         file_names = sys.argv[1:]
     else:
         file_names = [f'arxiv_sample_{i}' for i in
-            [1000, 5000, 10000, 25000]]
+            [1000, 5000, 10000, 25000, 50000, 100000, 200000]]
 
     # reminder: 1hot has 153 cats, 1hot_agg has 7 cats
     train_model(
         file_names,
-        info = {'val' : 'arxiv_val_big_1hot_agg', '1hot' : '1hot_agg', 'outputs' : 7},
+        info = {'val' : 'arxiv_val',
+                '1hot' : '1hot_agg',
+                'outputs' : 7},
         data_path = data_path,
         save_model = False,
         POS_WEIGHT = 1,
         ACTIVATION = 'elu',
-        NEURONS = [64],
-        INPUT_DROPOUT = 0.2,
+        NEURONS = [64, 64],
+        INPUT_DROPOUT = 0.0,
         HIDDEN_DROPOUT = 0.0,
-        MONITORING = 'val_loss',
-        PATIENCE = 10,
-        BATCH_SIZE = 512,
+        MONITORING = 'loss',
+        PATIENCE = 20,
+        BATCH_SIZE = 256,
         OPTIMIZER = 'nadam',
         MAX_EPOCHS = 1000000
         )

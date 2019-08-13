@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 import re # regular expressions
+import string
 import spacy as sp # used for lemmatising text
 import wget # downloading files
 import itertools as it # handling iterators like count()
@@ -67,14 +68,14 @@ def setup(path = "data"):
     else:
         print("cats.csv is already downloaded.")
     
-    # download validation sets
-    for fname in ['arxiv_val', 'arxiv_val_big']:
-        for onehot_name in ['1hot', '1hot_agg']:
-            full_path = os.path.join(path, f"{fname}_{onehot_name}.csv")
-            if not os.path.isfile(full_path):
-                wget.download(url_start + f"{fname}_{onehot_name}.csv", out = full_path)
-            else:
-                print(f"{fname}_{onehot_name}.csv is already downloaded.")
+    # download validation set
+    for onehot_name in ['1hot', '1hot_agg']:
+        full_path = os.path.join(path, f"arxiv_val_{onehot_name}.csv")
+        if not os.path.isfile(full_path):
+            wget.download(url_start + f"arxiv_val_{onehot_name}.csv", 
+                out = full_path)
+        else:
+            print(f"arxiv_val_{onehot_name}.csv is already downloaded.")
 
 
 def download_papers(file_name, path = "data"):
@@ -96,7 +97,8 @@ def get_preclean_text(file_name, path = "data"):
     print("Loading in raw file...")
 
     full_path = os.path.join(path, f"{file_name}.csv")
-    df = pd.read_csv(full_path, usecols = ['title', 'abstract', 'category'])
+    df = pd.read_csv(full_path, usecols = ['title', 'abstract', 'category'],
+            header = 0)
 
     print("Raw file loaded!")
     print("Precleaning raw file...")
@@ -107,23 +109,44 @@ def get_preclean_text(file_name, path = "data"):
     # merge title and abstract
     df['clean_text'] = df['title'] + ' ' + df['abstract']
     df.drop(columns = ['title', 'abstract'], inplace = True)
+    
+    # remove newline symbols
+    df['clean_text'] = df['clean_text'].str.replace('\n', ' ')
 
-    # remove punctuation marks
-    punctuation ='\!\"\#\$\%\&\(\)\*\+\-\/\:\;\<\=\>\?\@\[\\\]\^\_\`\{\|\}\~'
-    df['clean_text'] = df['clean_text'].apply(lambda x: re.sub(punctuation,
-                                                               '', x))
+    # remove equations
+    bracketeqn = \
+        '(\\*[\[\(])' + \
+        '(.*?)' + \
+        '(\\*[\]\)])'
+    dollareqn = \
+        '(?<!\$)\${1,2}(?!\$)' + \
+        '(.*?)' + \
+        '(?<!\$)(?<!\$)\${1,2}(?!\$)(?!\$)'
+    df['clean_text'] = df['clean_text'].apply(
+        lambda x: re.sub(dollareqn, '', x))
+    df['clean_text'] = df['clean_text'].apply(
+        lambda x: re.sub(bracketeqn, '', x))
 
     # convert text to lowercase
     df['clean_text'] = df['clean_text'].str.lower()
 
     # remove numbers
-    df['clean_text'] = df['clean_text'].str.replace("[0-9]", "")
+    df['clean_text'] = df['clean_text'].str.replace('[0-9]', '')
+
+    # turn hyphens into spaces
+    df['clean_text'] = df['clean_text'].str.replace('\-', ' ')
     
+    # remove punctuation
+    punctuation = re.escape(string.punctuation)
+    df['clean_text'] = df['clean_text'].apply(
+        lambda x: re.sub(f'[{punctuation}]', '', x))
+
     # remove whitespaces
-    df['clean_text'] = df['clean_text'].apply(lambda x:' '.join(x.split()))
+    df['clean_text'] = df['clean_text'].apply(
+        lambda x:' '.join(x.split()))
 
     full_path = os.path.join(path, f'{file_name}_preclean.csv')
-    df.to_csv(full_path, index = False, header = False,
+    df.to_csv(full_path, index = False, header = None,
         quoting = csv.QUOTE_ALL)
     
     print("Preclean complete!")
@@ -148,7 +171,8 @@ def lemmatise_file(file_name, batch_size = 1024, path = "data",
         full_path = os.path.join(temp_dir, f"{file_name}_clean_{i}.csv")
         if not os.path.isfile(full_path):
             clean_text = np.asarray([' '.join(np.asarray(
-                [token.lemma_ for token in nlp(text)]))
+                [token.lemma_ for token in nlp(text)
+                if not token.is_stop]))
                 for text in batch.iloc[:, 1]])
             batch.iloc[0 : clean_text.size, 1] = clean_text
 
@@ -172,7 +196,6 @@ def lemmatise_file(file_name, batch_size = 1024, path = "data",
             print("Please answer 'y' for yes or 'n' for no.")
     
     if cont == 'y':
-        print("") # deal with \r
         print("Merging files...")
 
         # concatenate all temporary csv files into a single csv file
@@ -194,6 +217,10 @@ def lemmatise_file(file_name, batch_size = 1024, path = "data",
         # remove all the temporary batch files
         print("Removing temporary files...")
         shutil.rmtree(temp_dir)
+        try:
+            os.rmdir(temp_dir)
+        except:
+            pass
 
         # remove precleaned file as we have the fully cleaned one
         try:

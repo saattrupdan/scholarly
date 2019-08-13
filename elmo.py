@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import itertools as it # handling iterators like count()
 import time # used for sleep()
 import shutil # copying data with copyfileobj() and removing with rmtree()
@@ -7,12 +8,11 @@ import sys # used for exit()
 import wget # for downloading files
 import tarfile # for unpacking files
 import warnings # allows suppression of warnings
-
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # ignore tensorflow warnings
-
 import tensorflow_hub as hub
 import tensorflow.compat.v1 as tf
 
+# disable tensorflow INFO and WARNING messages
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 def download_elmo_model():
     ''' Download the pre-trained ELMo model and store it.'''
@@ -38,8 +38,8 @@ def download_elmo_model():
 
 def generate_elmo_function(module):
     '''
-    From an ELMo model generate a function that can extract
-    ELMo features from sentences.
+    From an ELMo model generate a function that can extract ELMo
+    features from sentences.
     '''
     with tf.Graph().as_default():
         sentences = tf.placeholder(tf.string)
@@ -54,7 +54,7 @@ def generate_elmo_function(module):
     return lambda x: session.run(mean_embeddings, {sentences: x})
 
 
-def extract(file_name, path = "data", batch_size = 10,
+def extract(file_name, path = "data", batch_size = 16,
         doomsday_clock = np.inf, confirmation = False):
     '''
     Extract ELMo features from file and store them as a csv file.
@@ -82,9 +82,21 @@ def extract(file_name, path = "data", batch_size = 10,
         if not os.path.isdir(temp_dir):
             os.system(f"mkdir {temp_dir}")
         
-        # infinite loop
+        full_path = os.path.join(path, f'{file_name}_1hot.csv')
+        batches = pd.read_csv(
+            full_path, 
+            header = None, 
+            chunksize = batch_size,
+            encoding = 'utf-8'
+            )
+
         print("Extracting ELMo features...")
-        for i in it.count():
+        for (i, batch) in enumerate(batches):
+            
+            full_path = os.path.join(temp_dir, f"{file_name}_elmo_{i}.csv")
+            if os.path.isfile(full_path):
+                continue
+
             # if it's doomsday then exit python
             if doomsday_clock == 0:
                 print("") # deal with \r
@@ -98,39 +110,17 @@ def extract(file_name, path = "data", batch_size = 10,
                       f"papers... Doomsday clock at " \
                       f"{doomsday_clock}...", end = "\r")
 
-            full_path = os.path.join(temp_dir, f"{file_name}_elmo_{i}.csv")
-            if not os.path.isfile(full_path):
-                # get the next batch and break loop if it does not exist 
-                full_path = os.path.join(path, f"{file_name}_clean.csv")
-                try:
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")
-                        batch = np.loadtxt(
-                            fname = full_path,
-                            delimiter = '\n',
-                            skiprows = i * batch_size,
-                            max_rows = batch_size,
-                            dtype = object,
-                            encoding = 'utf-8'
-                            )
-                except StopIteration:
-                    break
-                
-                # create empty file to reserve it
-                full_path = os.path.join(temp_dir, f"{file_name}_elmo_{i}.csv")
-                open(full_path, 'a').close()
-            
-                # extract ELMo features
-                elmo_data = elmo(batch)
+            # extract ELMo features
+            elmo_data = pd.DataFrame(elmo(batch.iloc[:, 0]))
 
-                # save ELMo features for the batch into a csv file
-                np.savetxt(full_path, elmo_data, delimiter = ',')
-                
-                # doomsday clock gets one step closer to doomsday
-                # if doomsday_clock == np.inf then this stays np.inf
-                doomsday_clock -= 1
+            # save ELMo features for the batch into a csv file
+            elmo_data.to_csv(full_path, index = False, header = None)
+            
+            # doomsday clock gets one step closer to doomsday
+            # if doomsday_clock == np.inf then this stays np.inf
+            doomsday_clock -= 1
         
-        print("") # deal with \r
+        print("ELMo extraction complete!" + " " * 25)
         
         # ask user if they want to merge batches
         if confirmation:
@@ -151,22 +141,23 @@ def extract(file_name, path = "data", batch_size = 10,
             full_path = os.path.join(path, f"{file_name}_elmo.csv")
             with open(full_path, 'wb+') as file_out:
                 for i in it.count():
-                    if i % 100 == 0:
-                        print(f"{i} files merged...", end = "\r")
                     try:
                         full_path = os.path.join(temp_dir,
                             f"{file_name}_elmo_{i}.csv")
                         with open(full_path, "rb") as file_in:
                             shutil.copyfileobj(file_in, file_out)
+                        print(f"{i+1} files merged...", end = "\r")
                     except IOError:
                         break
                 print("") # deal with \r
 
-            print("Merge complete.")
+            print("Merge complete!" + " " * 25)
 
             # remove all the temporary batch files
             print("Removing temporary files...")
             shutil.rmtree(temp_dir)
-            print("Removal complete.")
-
-        print("All done with ELMo feature extraction!")
+            try:
+                os.rmdir(temp_dir)
+            except:
+                pass
+            print("Removal complete!")

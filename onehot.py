@@ -123,34 +123,48 @@ def one_hot(file_name, path = 'data', batch_size = 256, onehot_name = '1hot'):
             )
 
         for (i, batch) in enumerate(clean_batches):
+            
+            # reset index of batch, which will enable
+            # concatenation with other dataframes
+            batch.reset_index(inplace = True, drop = True)
 
-            full_path = os.path.join(temp_dir, f'{file_name}_{onehot_name}_{i}_csv')
+            # if file already exists then skip it
+            full_path = os.path.join(temp_dir,
+                f'{file_name}_{onehot_name}_{i}_csv')
             if os.path.isfile(full_path):
                 continue
 
             # one-hot encode
             bincat_arr = np.array([bin_fn(cat_list, all_cats)
                 for cat_list in batch.iloc[:, 0]]).transpose()
-            bincat_dict = {key:value for (key,value) in zip(all_cats, bincat_arr)}
+            bincat_dict = {key:value for (key,value) in
+                zip(all_cats, bincat_arr)}
             df_1hot = pd.DataFrame.from_dict(bincat_dict)
 
             # merge clean df and one-hot cats
-            df_1hot = pd.concat([batch, df_1hot], axis = 1, ignore_index = True)
-            
-            # drop category column
-            df_1hot.drop(columns = [0], inplace = True)
-    
+            df_1hot = pd.concat(
+                [batch.iloc[:, 1], df_1hot], 
+                axis = 1, 
+                )
+
             # remove rows with no categories
-            no_cats = np.argwhere(np.equal(np.sum(bincat_arr, axis = 0), 0))
+            no_cats = np.argwhere(
+                        np.equal(
+                            np.sum(bincat_arr, axis = 0),
+                            0
+                            )
+                        ).T.squeeze()
             df_1hot.drop(index = no_cats)
 
             # save the one-hot encoded dataframe
-            full_path = os.path.join(temp_dir, f"{file_name}_{onehot_name}_{i}.csv")
+            full_path = os.path.join(temp_dir,
+                f"{file_name}_{onehot_name}_{i}.csv")
             df_1hot.to_csv(full_path, index = False, header = False)
 
-            print(f'One-hot encoded {(i+1) * batch_size} papers...', end = '\r')
+            print(f'One-hot encoded {(i+1) * batch_size} papers...',
+                end = '\r')
 
-        print("")
+        print("One-hot encoding complete!" + " " * 25)
         print("Merging temporary files...")
 
         full_path = os.path.join(path, f'{file_name}_{onehot_name}.csv')
@@ -164,9 +178,12 @@ def one_hot(file_name, path = 'data', batch_size = 256, onehot_name = '1hot'):
                         shutil.copyfileobj(file_in, file_out)
                 except IOError:
                     break
-            print("") # deal with \r
+            print("Merge complete!" + " " * 25)
 
         print("Removing temporary files...")
         shutil.rmtree(temp_dir)
-        
-        print(f"One-hot encoding of {file_name}_{onehot_name} all done!")
+        try:
+            os.rmdir(temp_dir)
+        except:
+            pass
+        print("Removal complete!")
