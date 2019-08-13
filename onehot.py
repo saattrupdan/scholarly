@@ -155,6 +155,9 @@ def one_hot(file_name, path = 'data', batch_size = 256, onehot_name = '1hot'):
                             )
                         ).T.squeeze()
             df_1hot.drop(index = no_cats)
+            
+            # remove rows with invalid text
+            df_1hot.dropna(inplace = True)
 
             # save the one-hot encoded dataframe
             full_path = os.path.join(temp_dir,
