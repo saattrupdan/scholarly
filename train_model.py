@@ -109,8 +109,8 @@ def train_model(file_names, labels_name, no_labels, data_path = 'data',
         # initialise neural network
         inputs = Input(shape = (4096,))
         x = Dropout(input_dropout)(inputs)
-        for neurons in neurons:
-            x = Dense(neurons, activation = activation)(x)
+        for n in neurons:
+            x = Dense(n, activation = activation)(x)
             x = Dropout(hidden_dropout)(x)
         outputs = Dense(no_labels, activation = 'sigmoid')(x)
 
@@ -246,12 +246,15 @@ Micro-average F1 score: {np.around(v_f1 * 100, 2)}%\n '''
         plt.legend()
         plt.savefig(plot_path)
 
-        # save predictor
-        predictor_fname = f"{file_name}_{labels_name}_predictor.pickle"
-        predictor_path = os.path.join(data_path, predictor_fname)
-        predictor = lambda x: multilabel_bins(nn.predict(x)[0, 0], threshold)
-        with open(predictor_path, 'wb') as pickle_out:
-            pickle.dump(predictor, pickle_out)
+        # save nn
+        nn_path = os.path.join(data_path, f"{file_name}_nn.h5")
+        nn.save(nn_path)
+
+        # save nn data
+        nn_data_path = os.path.join(data_path, f"{file_name}_nn_data.pickle")
+        nn_data = {'threshold' : threshold}
+        with open(nn_data_path, 'wb+') as pickle_out:
+            pickle.dump(nn_data, pickle_out)
 
 
 if __name__ == '__main__':

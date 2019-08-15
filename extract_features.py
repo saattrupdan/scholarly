@@ -27,7 +27,7 @@ import wget
 # parallelising tasks
 import multiprocessing
 
-# progress bar
+# progress bars
 from tqdm import tqdm
 
 # used to get current directory
@@ -46,13 +46,12 @@ import string
 import csv
 
 
-def setup(data_path = "data", onehot_names = ['1hot']):
+def setup(data_path = "data"):
     ''' Create data path and download list of arXiv categories. '''
 
     # set up paths
     cats_path = os.path.join(data_path, "cats.csv")
-    onehot_paths = [os.path.join(data_path, f"arxiv_val_{onehot_name}.csv")
-                    for onehot_name in onehot_names]
+    labels_agg_path = os.path.join(data_path, "arxiv_val_labels_agg.csv")
     
     # create data directory
     if not os.path.isdir(data_path):
@@ -64,16 +63,11 @@ def setup(data_path = "data", onehot_names = ['1hot']):
     # download a list of all the arXiv categories
     if not os.path.isfile(cats_path):
         wget.download(url_start + "cats.csv", out = cats_path)
-    else:
-        print("cats.csv is already downloaded.")
     
     # download validation set
-    for onehot_name, onehot_path in zip(onehot_names, onehot_paths):
-        if not os.path.isfile(onehot_path):
-            wget.download(url_start + f"arxiv_val_{onehot_name}.csv", 
-                out = onehot_path)
-        else:
-            print(f"arxiv_val_{onehot_name}.csv is already downloaded.")
+    if not os.path.isfile(labels_agg_path):
+        url = url_start + "arxiv_val_labels_agg.csv"
+        wget.download(url, out = labels_agg_path)
 
 def download_papers(file_name, data_path = "data"):
     ''' Download the raw paper data. '''
@@ -82,12 +76,10 @@ def download_papers(file_name, data_path = "data"):
     raw_path = os.path.join(data_path, f'{file_name}.csv')
     if not os.path.isfile(raw_path):
         wget.download(url_start + f"{file_name}.csv", out = raw_path)
-    else:
-        print(f"{file_name}.csv is already downloaded.")
 
 def clean_cats(texts, all_cats, data_path = "data"):
     ''' Convert a string-like list of cats like "[a,b,c]" into
-        a an array [a,b,c] with only legal categories in it. '''
+        an array [a,b,c] with only legal categories in it. '''
 
     # convert string to numpy array
     arr = np.asarray(re.sub('[\' \[\]]', '', texts).split(','))
@@ -104,7 +96,7 @@ def aggregate_cat(cat):
         agg_cat = 'physics'
 
     elif cat[:2] == 'cs':
-        agg_cat = 'computer science'
+        agg_cat = 'compsci'
 
     elif cat[:5] == 'gr-qc':
         agg_cat = 'physics'
@@ -134,7 +126,7 @@ def aggregate_cat(cat):
         agg_cat = 'statistics'
 
     elif cat[:4] == 'eess':
-        agg_cat = 'electrical engineering and systems science'
+        agg_cat = 'eess'
     
     elif cat[:8] == 'cond-mat':
         agg_cat = 'physics'
@@ -208,8 +200,8 @@ def basic_clean(series):
 
     return series
     
-def clean_batch(enum_batch, file_name, temp_dir, nlp_model,
-    cat_binner, all_cats, batch_size = 1024):
+def clean_batch(enum_batch, file_name, temp_dir, nlp_model, all_agg_cats,
+    cats, batch_size = 1024):
     ''' Clean a single batch. '''
 
     idx, batch = enum_batch
@@ -232,24 +224,33 @@ def clean_batch(enum_batch, file_name, temp_dir, nlp_model,
     # other dataframes
     batch.reset_index(inplace = True, drop = True)
 
-    # one-hot encode
-    for (onehot_name, bin_fn) in cat_binner.items():
-        bincat_arr = np.array([bin_fn(cat_list, all_cats[onehot_name])
-            for cat_list in batch['category']]).transpose()
-        bincat_dict = {key:value for (key,value) in
-            zip(all_cats[onehot_name], bincat_arr)}
-        df_1hot = pd.DataFrame.from_dict(bincat_dict)
+    # one-hot encode aggregated categories
+    bincat_arr = np.array([agg_cats_to_binary(cat_list, all_agg_cats)
+        for cat_list in batch['category']]).transpose()
+    bincat_dict = {key:value for (key,value) in
+        zip(all_agg_cats, bincat_arr)}
+    df_labels_agg = pd.DataFrame.from_dict(bincat_dict)
+    df_labels_agg = pd.concat([batch['clean_text'], df_labels_agg], axis = 1)
 
-        # merge clean text and one-hot cats
-        df_1hot = pd.concat([batch['clean_text'], df_1hot], axis = 1)
+    # save aggregated batch
+    temp_fname = f'{file_name}_labels_agg_{idx}.csv'
+    batch_path = os.path.join(temp_dir, temp_fname)
+    df_labels_agg.to_csv(batch_path, index = False, header = None)
 
-        # save batch
-        temp_fname = f'{file_name}_{onehot_name}_{idx}.csv'
-        batch_path = os.path.join(temp_dir, temp_fname)
-        df_1hot.to_csv(batch_path, index = False, header = None)
+    # deal with the individual aggregated categories
+    for agg_cat in all_agg_cats:
+       bincat_arr = np.array([cats_to_binary(cat_list, cats[agg_cat])
+           for cat_list in batch['category']]).transpose()
+       bincat_dict = {key:value for (key,value) in
+           zip(cats[agg_cat], bincat_arr)}
+       df_labels = pd.DataFrame.from_dict(bincat_dict)
+       df_labels = pd.concat([batch['clean_text'], df_labels], axis = 1)
 
-def clean_file(file_name, cat_finder, cat_binner, batch_size = 1024,
-    data_path = "data", confirmation = True, rows = None):
+       temp_fname = f'{file_name}_labels_{agg_cat}_{idx}.csv'
+       batch_path = os.path.join(temp_dir, temp_fname)
+       df_labels_agg.to_csv(batch_path, index = False, header = None)
+
+def clean_file(file_name, batch_size = 1024, data_path = "data", rows = None):
     ''' Clean file in batches, and save to csv. '''
 
     # create paths
@@ -257,14 +258,9 @@ def clean_file(file_name, cat_finder, cat_binner, batch_size = 1024,
     raw_path = os.path.join(data_path, f"{file_name}.csv")
     temp_dir = os.path.join(data_path, f'{file_name}_temp')
     clean_path = os.path.join(data_path, f"{file_name}_clean.csv")
-    onehot_path = {}
-    temp_path = {}
-    for onehot_name in cat_finder.keys():
-        fname = f"{file_name}_{onehot_name}.csv"
-        onehot_path[onehot_name] = os.path.join(data_path, fname)
-        temp_fname = lambda i: f"{file_name}_{onehot_name}_{i}.csv"
-        temp_path[onehot_name] = \
-            lambda i: os.path.join(temp_dir, temp_fname(i))
+    labels_agg_path = os.path.join(data_path, f"{file_name}_labels_agg.csv")
+    temp_agg_fname = lambda i: f"{file_name}_labels_agg_{i}.csv"
+    temp_agg_path = lambda i: os.path.join(temp_dir, temp_fname(i))
 
     # load English spaCy model for lemmatising
     nlp_model = sp.load('en', disable=['parser', 'ner'])
@@ -273,12 +269,14 @@ def clean_file(file_name, cat_finder, cat_binner, batch_size = 1024,
     if not os.path.isdir(temp_dir):
         os.system(f"mkdir {temp_dir}")
 
-    # get cats
-    cats_df = pd.read_csv(cats_path)
-    all_cats = {}
-    for (onehot_name, finder_fn) in cat_finder.items():
-        all_cats[onehot_name] = np.asarray(
-            cats_df['category'].apply(finder_fn).unique())
+    # get all the aggregated categories
+    cats_series = pd.read_csv(cats_path)['category']
+    all_agg_cats = np.asarray(cats_series.apply(aggregate_cat).unique())
+
+    # get all the categories
+    all_cats = np.asarray(cats_series.unique())
+    aggregate_cats = np.vectorize(aggregate_cat)
+    cats = {agg_cat : all_cats[np.equals(aggregate_cats(all_cats), agg_cat)]}
 
     print("Cleaning file...")
 
@@ -286,7 +284,7 @@ def clean_file(file_name, cat_finder, cat_binner, batch_size = 1024,
     cat_cleaner = partial(
         clean_cats,
         data_path = data_path,
-        all_cats = all_cats['1hot']
+        all_cats = all_cats
         )
     batches = pd.read_csv(
         raw_path,
@@ -304,8 +302,8 @@ def clean_file(file_name, cat_finder, cat_binner, batch_size = 1024,
         file_name = file_name,
         batch_size = batch_size,
         nlp_model = nlp_model,
-        all_cats = all_cats,
-        cat_binner = cat_binner
+        all_agg_cats = all_agg_cats,
+        cats = cats
         )
 
     # clean file in parallel batches and show progress bar
@@ -315,41 +313,27 @@ def clean_file(file_name, cat_finder, cat_binner, batch_size = 1024,
     pool.close()
     pool.join()
     
-    # ask user if they want to merge batches
-    if confirmation:
-        cont = None
-    else:
-        cont = 'y'
-
-    while cont not in {'y','n'}:
-        cont = input('Processed all batches. Merge them all and ' \
-                     'delete batches? (y/n) \n > ')
-        if cont not in {'y','n'}:
-            print("Please answer 'y' for yes or 'n' for no.")
+    print("Merging and removing temporary files...")
+    # merge temporary files
+        with open(labels_agg_path, 'wb+') as file_out:
+            for i in itertools.count():
+                try:
+                    with open(temp_agg_path(i), "rb+") as file_in:
+                        shutil.copyfileobj(file_in, file_out)
+                except IOError:
+                    break
     
-    if cont == 'y':
-        print("Merging and removing temporary files...")
+    # remove temporary files
+    shutil.rmtree(temp_dir)
 
-        # merge temporary files
-        for onehot_name in cat_finder.keys():
-            with open(onehot_path[onehot_name], 'wb+') as file_out:
-                for i in itertools.count():
-                    try:
-                        with open(temp_path[onehot_name](i), "rb+") as file_in:
-                            shutil.copyfileobj(file_in, file_out)
-                    except IOError:
-                        break
-        
-        # remove temporary files
-        shutil.rmtree(temp_dir)
-
-def extract_tfidf(file_name, data_path = "data"):
+def extract_tfidf(file_name, rows, data_path = "data"):
     ''' Extract tf-idf features from file and store them as a npz file. '''
     
     # set up paths
     tfidf_path = os.path.join(data_path, f"{file_name}_tfidf.npz")
-    tmodel_path = os.path.join(data_path, f"{file_name}_tfidf_model.pickle")
-    text_path = os.path.join(data_path, f"{file_name}_1hot.csv")
+    tfidf_model_fname = f"{file_name}_tfidf_model.pickle"
+    tfidf_model_path = os.path.join(data_path, tfidf_model_fname)
+    text_path = os.path.join(data_path, f"{file_name}_labels_agg.csv")
 
     print("Extracting tf-idf features...")
     data = iter(pd.read_csv(
@@ -358,9 +342,9 @@ def extract_tfidf(file_name, data_path = "data"):
         encoding = 'utf-8'
         ).iloc[:, 0])
     tfidf = TfidfVectorizer(max_features = 4096)
-    tfidf_data = tfidf.fit_transform(data)
+    tfidf_data = tfidf.fit_transform(tqdm(data, total = rows))
     save_npz(tfidf_path, tfidf_data)
-    with open(tmodel_path, 'wb+') as pickle_out:
+    with open(tfidf_model_path, 'wb+') as pickle_out:
         pickle.dump(tfidf, pickle_out)
 
 
@@ -370,27 +354,14 @@ if __name == '__main__':
     if len(sys.argv) > 1:
         file_names = sys.argv[1:]
     else:
-        file_names = [f'arxiv_sample_{i}' for i in
-            [1000, 5000, 10000, 25000, 50000, 100000, 200000,
-             500000, 750000]] + ['arxiv']
+        file_names = [f'arxiv_sample_{i}' for i in [1000, 5000, 10000, \
+            25000, 50000, 100000, 200000, 500000, 750000]] + ['arxiv']
 
     home_dir = str(pathlib.Path.home())
     data_path = os.path.join(home_dir, "pCloudDrive", "public_folder",
         "scholarly_data")
 
-    # set function that finds cats
-    cat_finder = {
-        '1hot' : lambda x: x,
-        '1hot_agg' : aggregate_cat
-        }
-
-    # set function that creates binary cats
-    cat_binner = {
-        '1hot' : cats_to_binary,
-        '1hot_agg' : agg_cats_to_binary
-        }
-
-    setup(data_path = data_path, onehot_names = ['1hot', '1hot_agg'])
+    setup(data_path = data_path)
     for file_name in file_names:
 
         print("------------------------------------")
@@ -406,11 +377,12 @@ if __name == '__main__':
             clean_file(
                 file_name = file_name, 
                 data_path = data_path,
-                batch_size = 1024,
-                confirmation = False,
                 rows = rows,
-                cat_finder = cat_finder,
-                cat_binner = cat_binner
+                batch_size = 1024
                 )
-            extract_tfidf(file_name = file_name, data_path = data_path)
+            extract_tfidf(
+                file_name = file_name,
+                data_path = data_path,
+                rows = rows
+                )
             print("Feature extraction complete.")

@@ -5,34 +5,35 @@ import numpy as np
 # used for lemmatising
 import spacy
 
-# used to load models
+# used to load things
 import pickle
+from tensorflow.keras.models import load_model
 
 # partial functions
 from functools import partial
 
 # local packages
-from extract_features import basic_clean
+from extract_features import aggregate_cat, basic_clean
 from train_model import multilabel_bins
 
 
-def classify(title, abstract, tfidf_model, predictor, all_cats):
+def classify(title, abstract, tfidf_model, nn, threshold, all_agg_cats):
     clean_text = pd.Series([title + abstract])
     clean_text = basic_clean(clean_text).iloc[0, 0]
     clean_text = ' '.join(np.asarray(
         [token.lemma_ for token in nlp(clean_text) if not token.is_stop]))
 
     tfidf_text = tfidf_model.transform(np.asarray([clean_text]))
-    predictions = predictor(tfidf_text)
-    return all_cats[predictions]
+    predictions = multilabel_bins(nn.predict(tfidf_text)[0, 0], threshold)
+    return all_agg_cats[predictions]
 
 def generate_classifier(file_name, labels_name, data_path = 'data'):
 
     # set up paths
-    tfidf_path = os.path.join(data_path, f'{file_name}_tfidf_model.pickle')
-    predictor_fname = f'{file_name}_{labels_name}_predictor.pickle'
-    predictor_path = os.path.join(data_path, predictor_fname)
     cats_path = os.path.join(data_path, 'cats.csv')
+    tfidf_path = os.path.join(data_path, f'{file_name}_tfidf_model.pickle')
+    nn_path = os.path.join(data_path, f'{file_name}_nn.h5')
+    nn_data_path = os.path.join(data_path, f'{file_name}_nn_data.pickle')
 
     # download files
     url_start = f"https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data/"
@@ -42,30 +43,32 @@ def generate_classifier(file_name, labels_name, data_path = 'data'):
     if not os.path.isfile(tfidf_path):
         url = url_start + f"{file_name}_tfidf_model.pickle"
         wget.download(url, out = cats_path)
-    if not os.path.isfile(predictor_path):
-        url = url_start + f"{file_name}_predictor.pickle"
-        wget.download(url, out = predictor_path)
+    if not os.path.isfile(nn_path):
+        url = url_start + f"{file_name}_nn.h5"
+        wget.download(url, out = nn_path)
+    if not os.path.isfile(nn_data_path):
+        url = url_start + f"{file_name}_nn_data.pickle"
+        wget.download(url, out = nn_data_path)
 
     # load in files
     cats_df = pd.read_csv(cats_path)
     with open(tfidf_path, 'rb+') as pickle_in:
         tfidf_model = pickle.load(pickle_in)
-    with open(predictor_path, 'rb+') as pickle_in:
-        predictor = pickle.load(pickle_in)
+    nn = load_model(nn_path)
+    with open(nn_data_path, 'rb+') as pickle_in:
+        nn_data = pickle.load(pickle_in)
+        threshold = nn_data['threshold']
     
-    # get list of all categories
-    cat_finder = {
-        '1hot' : lambda x: x,
-        '1hot_agg' : aggregate_cat
-        }
-    all_cats = cats_df['category'].apply(cat_finder[labels_name]).unique()
+    # get list of all aggregated categories
+    all_agg_cats = cats_df['category'].apply(aggregate_cat).unique()
     
     # stitch together the classifier
     classifier = partial(
         classify, 
         tfidf_model = tfidf_model, 
-        predictor = predictor, 
-        all_cats = all_cats
+        nn = nn, 
+        threshold = threshold,
+        all_agg_cats = all_agg_cats
         )
 
     return classifier
