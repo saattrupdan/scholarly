@@ -1,66 +1,71 @@
+# core packages
+import pandas as pd
 import numpy as np
-import tensorflow as tf
-import tensorflow_hub as hub
-import spacy as sp
+
+# used for lemmatising
+import spacy
+
+# used to load models
 import pickle
-import re
-import os
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # ignore tensorflow warnings
+# partial functions
+from functools import partial
 
-def clean_text(title, abstract):
-    clean_text = title + ' ' + abstract
+# local packages
+from extract_features import basic_clean
+from train_model import multilabel_bins
+
+
+def classify(title, abstract, tfidf_model, predictor, all_cats):
+    clean_text = pd.Series([title + abstract])
+    clean_text = basic_clean(clean_text).iloc[0, 0]
+    clean_text = ' '.join(np.asarray(
+        [token.lemma_ for token in nlp(clean_text) if not token.is_stop]))
+
+    tfidf_text = tfidf_model.transform(np.asarray([clean_text]))
+    predictions = predictor(tfidf_text)
+    return all_cats[predictions]
+
+def generate_classifier(file_name, labels_name, data_path = 'data'):
+
+    # set up paths
+    tfidf_path = os.path.join(data_path, f'{file_name}_tfidf_model.pickle')
+    predictor_fname = f'{file_name}_{labels_name}_predictor.pickle'
+    predictor_path = os.path.join(data_path, predictor_fname)
+    cats_path = os.path.join(data_path, 'cats.csv')
+
+    # download files
+    url_start = f"https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data/"
+    if not os.path.isfile(cats_path):
+        url = url_start + "cats.csv"
+        wget.download(url, out = cats_path)
+    if not os.path.isfile(tfidf_path):
+        url = url_start + f"{file_name}_tfidf_model.pickle"
+        wget.download(url, out = cats_path)
+    if not os.path.isfile(predictor_path):
+        url = url_start + f"{file_name}_predictor.pickle"
+        wget.download(url, out = predictor_path)
+
+    # load in files
+    cats_df = pd.read_csv(cats_path)
+    with open(tfidf_path, 'rb+') as pickle_in:
+        tfidf_model = pickle.load(pickle_in)
+    with open(predictor_path, 'rb+') as pickle_in:
+        predictor = pickle.load(pickle_in)
     
-    # remove punctuation marks
-    punctuation ='\!\"\#\$\%\&\(\)\*\+\-\/\:\;\<\=\>\?\@\[\\\]\^\_\`\{\|\}\~'
-    clean_text = re.sub(punctuation, '', clean_text)
-
-    # convert text to lowercase
-    clean_text = clean_text.lower()
-
-    # remove numbers
-    clean_text = clean_text.replace("[0-9]", "")
-
-    # remove trailing whitespaces
-    clean_text = ' '.join(clean_text.split())
+    # get list of all categories
+    cat_finder = {
+        '1hot' : lambda x: x,
+        '1hot_agg' : aggregate_cat
+        }
+    all_cats = cats_df['category'].apply(cat_finder[labels_name]).unique()
     
-    # lemmatise
-    nlp = sp.load('en', disable=['parser', 'ner'])
-    clean_text = ' '.join(np.asarray([token.lemma_ 
-        for token in nlp(clean_text)]))
- 
-    return clean_text
+    # stitch together the classifier
+    classifier = partial(
+        classify, 
+        tfidf_model = tfidf_model, 
+        predictor = predictor, 
+        all_cats = all_cats
+        )
 
-def elmo_clean_text(clean_text):
-    # load the ELMo model
-    elmo = hub.Module("elmo", trainable = False)
-
-    with tf.compat.v1.Session() as sess:
-        # initialise tensorflow session
-        sess.run(tf.compat.v1.global_variables_initializer())
-        sess.run(tf.compat.v1.tables_initializer())
-        
-        # extract ELMo features
-        embeddings = elmo([clean_text], signature = "default", 
-            as_dict = True)["elmo"]
-
-        # save the average ELMo features for every title+abstract
-        elmo_vectors = sess.run(tf.reduce_mean(embeddings, 1))
-
-    return elmo_vectors
-
-def predict_cats_from_elmo(elmo_vectors, nn_model):
-    pred_cats = np.around(nn_model.predict(elmo_vectors), decimals = 0)
-    pred_cats = np.squeeze(pred_cats).T
-    pred_cats = pred_cats.astype('int')
-    return pred_cats
-
-def predict_cats(title, abstract, model_path = 'nn_model.pickle'):
-    elmo_vectors = elmo_clean_text(clean_text(title, abstract))
-    
-    # load neural network model
-    with open(model_path, 'rb') as pickle_in:
-        nn_model = pickle.load(pickle_in)
-
-    pred_cat_probs = predict_cats_from_elmo(elmo_vectors.T, nn_model)
-    return pred_cat_probs > 0.5
+    return classifier

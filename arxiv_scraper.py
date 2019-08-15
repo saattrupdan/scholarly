@@ -1,8 +1,15 @@
+# core packages
 import numpy as np
 import pandas as pd
-from urllib import request # fetching data
-from bs4 import BeautifulSoup # dealing with scraped data
-import os # handling files
+import os
+
+# scraping data
+from urllib import request
+
+# dealing with scraped data
+from bs4 import BeautifulSoup
+
+# deal with time
 from datetime import datetime as dt
 from time import sleep
 
