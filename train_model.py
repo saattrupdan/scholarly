@@ -123,7 +123,7 @@ def train_model(file_names, labels, data_path = 'data',
             }
 
         # build neural network
-        inputs = Input(shape = (4096,))
+        inputs = Input(shape = (15000,))
         x = Drop(input_dropout)(inputs)
         for n in neurons:
             x = Dense(n, activation = activation, kernel_initializer = \
@@ -280,28 +280,29 @@ if __name__ == '__main__':
             [1000, 5000, 10000, 25000, 50000, 100000, 200000,
              500000, 750000]] + ['arxiv']
 
-    # reminder: 1hot has 153 cats, 1hot_agg has 7 cats
-    #           [1024, 1024] neurons is good for 1hot
-    #           [64, 64] neurons is good for 1hot_agg
+    # Reminder: there are 153 labels and 7 aggregated labels
+    #
+    # Settings that seem to work well for the aggregated labels:
+    #     activation  = elu
+    #     optimizer   = adam
+    #     neurons     = around [64, 64]
+    #     pos_weight  = between 1 and 2
+    #     batch size  = 32
+    #     dropout     = input around 20% and hidden around 25%
 
-    for input_dropout in np.arange(0, 0.3, 0.1):
-        for hidden_dropout in np.arange(0, 0.6, 0.1):
-            for batch_size in [32, 64, 128, 256, 512]:
-                for pos_weight in np.arange(1, 2, 0.1):
-                    for neurons in [[64, 64], [128, 128, 64, 64, 32, 32]]:
-                        train_model(
-                            file_names,
-                            val_name = 'arxiv_val',
-                            labels = 7,
-                            data_path = data_path,
-                            pos_weight = pos_weight,
-                            activation = 'elu',
-                            neurons = neurons,
-                            input_dropout = input_dropout,
-                            hidden_dropout = hidden_dropout,
-                            monitoring = 'val_loss',
-                            patience = 5,
-                            batch_size = batch_size,
-                            optimizer = 'nadam',
-                            max_epochs = 1000000
-                            )
+    train_model(
+        file_names,
+        val_name        =  'arxiv_val',
+        labels          =  7,
+        data_path       =  data_path,
+        pos_weight      =  1,
+        activation      =  'elu',
+        neurons         =  [64, 64],
+        input_dropout   =  0.20,
+        hidden_dropout  =  0.25,
+        monitoring      =  'val_loss',
+        patience        =  5,
+        batch_size      =  32,
+        optimizer       =  'adam',
+        max_epochs      =  1000000
+        )

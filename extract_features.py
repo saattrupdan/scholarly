@@ -239,16 +239,19 @@ def clean_batch(enum_batch, file_name, temp_dir, nlp_model, all_agg_cats,
 
     # deal with the individual aggregated categories
     for agg_cat in all_agg_cats:
-       bincat_arr = np.array([cats_to_binary(cat_list, cats[agg_cat])
-           for cat_list in batch['category']]).transpose()
-       bincat_dict = {key:value for (key,value) in
-           zip(cats[agg_cat], bincat_arr)}
-       df_labels = pd.DataFrame.from_dict(bincat_dict)
-       df_labels = pd.concat([batch['clean_text'], df_labels], axis = 1)
+        bincat_arr = np.array([cats_to_binary(cat_list, cats[agg_cat])
+            for cat_list in batch['category']]).T
+        rows_to_drop = np.array([i for (i, bincat) in enumerate(bincat_arr.T)
+                                 if 1 not in bincat])
+        bincat_dict = {key:value for (key,value) in
+            zip(cats[agg_cat], bincat_arr)}
+        df_labels = pd.DataFrame.from_dict(bincat_dict)
+        df_labels = pd.concat([batch['clean_text'], df_labels], axis = 1)
+        df_labels.drop(rows_to_drop, axis = 0, inplace = True)
 
-       temp_fname = f'{file_name}_labels_{agg_cat}_{idx}.csv'
-       batch_path = os.path.join(temp_dir, temp_fname)
-       df_labels_agg.to_csv(batch_path, index = False, header = None)
+        temp_fname = f'{file_name}_labels_{agg_cat}_{idx}.csv'
+        batch_path = os.path.join(temp_dir, temp_fname)
+        df_labels.to_csv(batch_path, index = False, header = None)
 
 def clean_file(file_name, batch_size = 1024, data_path = "data", rows = None):
     ''' Clean file in batches, and save to csv. '''
@@ -260,14 +263,7 @@ def clean_file(file_name, batch_size = 1024, data_path = "data", rows = None):
     clean_path = os.path.join(data_path, f"{file_name}_clean.csv")
     labels_agg_path = os.path.join(data_path, f"{file_name}_labels_agg.csv")
     temp_agg_fname = lambda i: f"{file_name}_labels_agg_{i}.csv"
-    temp_agg_path = lambda i: os.path.join(temp_dir, temp_fname(i))
-
-    # load English spaCy model for lemmatising
-    nlp_model = spacy.load('en', disable=['parser', 'ner'])
-        
-    # create directory for the temporary files
-    if not os.path.isdir(temp_dir):
-        os.system(f"mkdir {temp_dir}")
+    temp_agg_path = lambda i: os.path.join(temp_dir, temp_agg_fname(i))
 
     # get all the aggregated categories
     cats_series = pd.read_csv(cats_path)['category']
@@ -276,7 +272,21 @@ def clean_file(file_name, batch_size = 1024, data_path = "data", rows = None):
     # get all the categories
     all_cats = np.asarray(cats_series.unique())
     aggregate_cats = np.vectorize(aggregate_cat)
-    cats = {agg_cat : all_cats[np.equals(aggregate_cats(all_cats), agg_cat)]}
+    cats = {agg_cat : all_cats[aggregate_cats(all_cats) == agg_cat]
+                      for agg_cat in all_agg_cats}
+
+    # create paths for the individual aggregated categories
+    labels_fname = lambda cat: f'{file_name}_labels_{cat}.csv'
+    labels_path = lambda cat: os.path.join(data_path, labels_fname(cat))
+    temp_fname = lambda cat, i: f'{file_name}_labels_{cat}_{i}.csv'
+    temp_path = lambda cat, i: os.path.join(temp_dir, temp_fname(cat, i))
+
+    # load English spaCy model for lemmatising
+    nlp_model = spacy.load('en', disable=['parser', 'ner'])
+        
+    # create directory for the temporary files
+    if not os.path.isdir(temp_dir):
+        os.system(f"mkdir {temp_dir}")
 
     print("Cleaning file...")
 
@@ -314,7 +324,7 @@ def clean_file(file_name, batch_size = 1024, data_path = "data", rows = None):
     pool.join()
     
     print("Merging and removing temporary files...")
-    # merge temporary files
+    # merge temporary agg files
     with open(labels_agg_path, 'wb+') as file_out:
         for i in itertools.count():
             try:
@@ -322,6 +332,16 @@ def clean_file(file_name, batch_size = 1024, data_path = "data", rows = None):
                     shutil.copyfileobj(file_in, file_out)
             except IOError:
                 break
+
+    # merge temporary individual cat files
+    for agg_cat in all_agg_cats:
+        with open(labels_path(agg_cat), 'wb+') as file_out:
+            for i in itertools.count():
+                try:
+                    with open(temp_path(agg_cat, i), "rb+") as file_in:
+                        shutil.copyfileobj(file_in, file_out)
+                except IOError:
+                    break
     
     # remove temporary files
     shutil.rmtree(temp_dir)
@@ -341,7 +361,7 @@ def extract_tfidf(file_name, rows, data_path = "data"):
         header = None, 
         encoding = 'utf-8'
         ).iloc[:, 0])
-    tfidf = TfidfVectorizer(max_features = 4096)
+    tfidf = TfidfVectorizer(max_features = 15000, ngram_range = (1, 3))
     tfidf_data = tfidf.fit_transform(tqdm(data, total = rows))
     save_npz(tfidf_path, tfidf_data)
     with open(tfidf_model_path, 'wb+') as pickle_out:
