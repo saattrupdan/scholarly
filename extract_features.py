@@ -37,7 +37,7 @@ import pathlib
 import warnings
 
 # nlp model used for lemmatising text
-import spacy as sp
+import spacy
 
 # provides string.punctuation for a neat list of all punctuation
 import string
@@ -55,8 +55,8 @@ def setup(data_path = "data"):
     
     # create data directory
     if not os.path.isdir(data_path):
-        os.system(f"mkdir {path}")
-        print(f"Created {path} directory")
+        os.system(f"mkdir {data_path}")
+        print(f"Created {data_path} directory")
 
     url_start = f"https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data/"
 
@@ -263,7 +263,7 @@ def clean_file(file_name, batch_size = 1024, data_path = "data", rows = None):
     temp_agg_path = lambda i: os.path.join(temp_dir, temp_fname(i))
 
     # load English spaCy model for lemmatising
-    nlp_model = sp.load('en', disable=['parser', 'ner'])
+    nlp_model = spacy.load('en', disable=['parser', 'ner'])
         
     # create directory for the temporary files
     if not os.path.isdir(temp_dir):
@@ -315,13 +315,13 @@ def clean_file(file_name, batch_size = 1024, data_path = "data", rows = None):
     
     print("Merging and removing temporary files...")
     # merge temporary files
-        with open(labels_agg_path, 'wb+') as file_out:
-            for i in itertools.count():
-                try:
-                    with open(temp_agg_path(i), "rb+") as file_in:
-                        shutil.copyfileobj(file_in, file_out)
-                except IOError:
-                    break
+    with open(labels_agg_path, 'wb+') as file_out:
+        for i in itertools.count():
+            try:
+                with open(temp_agg_path(i), "rb+") as file_in:
+                    shutil.copyfileobj(file_in, file_out)
+            except IOError:
+                break
     
     # remove temporary files
     shutil.rmtree(temp_dir)
@@ -348,7 +348,7 @@ def extract_tfidf(file_name, rows, data_path = "data"):
         pickle.dump(tfidf, pickle_out)
 
 
-if __name == '__main__':
+if __name__ == '__main__':
 
     # set list of file_names
     if len(sys.argv) > 1:

@@ -4,6 +4,9 @@ import pandas as pd
 import os
 import sys
 
+# partial functions
+from functools import partial
+
 # plots
 import matplotlib.pyplot as plt
 
@@ -23,11 +26,16 @@ import pathlib
 # neural network packages
 import tensorflow.compat.v1 as tf
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Dense, Dropout
+from tensorflow.keras.layers import Input, Dense, Dropout, AlphaDropout
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.utils import get_custom_objects
+from tensorflow.keras.initializers import VarianceScaling
 from tensorflow.keras import backend as tfb
 from sklearn.metrics import precision_score, recall_score, f1_score
+
+# suppress deprecation warnings
+from tensorflow.python.util import deprecation
+deprecation._PRINT_DEPRECATION_WARNINGS = False
 
 # disable tensorflow INFO and WARNING messages
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -71,7 +79,7 @@ def threshold_f1(probabilities, threshold, Y_train):
         for prob in probabilities])
     return f1_score(Y_train, predictions, average = 'micro')
 
-def train_model(file_names, labels_name, no_labels, data_path = 'data',
+def train_model(file_names, labels, data_path = 'data',
     pos_weight = 5, activation = 'elu', neurons = [1024, 1024],
     input_dropout = 0.2, hidden_dropout = 0.5, monitoring = 'val_loss',
     patience = 20, batch_size = 512, optimizer = 'nadam',
@@ -83,19 +91,19 @@ def train_model(file_names, labels_name, no_labels, data_path = 'data',
         print("------------------------------------")
 
         # set up paths
-        predictor_fname = f"{file_name}_{labels_name}_predictor.pickle"
-        predictor_path = os.path.join(data_path, predictor_fname)
         tfidf_model_fname = f'{file_name}_tfidf_model.pickle'
         tfidf_model_path = os.path.join(data_path, tfidf_model_fname)
-        val_path = os.path.join(data_path, f"{val_name}_{labels_name}.csv")
+        val_path = os.path.join(data_path, f"{val_name}_labels_agg.csv")
         tfidf_path = os.path.join(data_path, f"{file_name}_tfidf.npz")
-        labels_path = os.path.join(data_path,f"{file_name}_{labels_name}.csv")
+        labels_path = os.path.join(data_path,f"{file_name}_labels_agg.csv")
         log_path = os.path.join(data_path, 'training_log.txt')
         plot_path = os.path.join(data_path, f'{file_name}_plot.png')
+        nn_path = os.path.join(data_path, f"{file_name}_nn.h5")
+        nn_data_path = os.path.join(data_path, f"{file_name}_nn_data.pickle")
 
-        if os.path.isfile(predictor_path):
-            print('Model already exists.')
-            continue
+        #if os.path.isfile(nn_path) and os.path.isfile(nn_data_path):
+        #    print('Model already exists.')
+        #    continue
 
         # load tf-idf model 
         with open(tfidf_model_path, 'rb+') as pickle_in:
@@ -106,28 +114,35 @@ def train_model(file_names, labels_name, no_labels, data_path = 'data',
         X_val = tfidf.transform(X_val)
         Y_val = np.asarray(pd.read_csv(val_path))[:, 1:].astype('int8')
 
-        # initialise neural network
+        # set activation-dependent variables
+        Drop = AlphaDropout if activation == 'selu' else Dropout
+        var_factor = {
+            'relu'  : 1.00, # he_normal
+            'elu'   : 1.55,
+            'selu'  : 2.00  # lecun_normal
+            }
+
+        # build neural network
         inputs = Input(shape = (4096,))
-        x = Dropout(input_dropout)(inputs)
+        x = Drop(input_dropout)(inputs)
         for n in neurons:
-            x = Dense(n, activation = activation)(x)
-            x = Dropout(hidden_dropout)(x)
-        outputs = Dense(no_labels, activation = 'sigmoid')(x)
-
+            x = Dense(n, activation = activation, kernel_initializer = \
+                VarianceScaling(scale = var_factor[activation]))(x)
+            x = Drop(hidden_dropout)(x)
+        outputs = Dense(labels, activation = 'sigmoid', kernel_initializer = \
+                VarianceScaling(scale = var_factor[activation]))(x)
         nn = Model(inputs = inputs, outputs = outputs)
-        
-        # make keras recognise custom loss when importing models
-        loss_fn = lambda x, y: weighted_binary_crossentropy(x, y,
-            pos_weight)
-        get_custom_objects().update(
-            {'weighted_binary_crossentropy': loss_fn}
-            )
+       
+        # make keras recognise custom loss function 
+        loss_fn = lambda x, y: \
+            weighted_binary_crossentropy(x, y, pos_weight = pos_weight)
+        get_custom_objects().update({'weighted_binary_crossentropy' : loss_fn})
 
+        # set up neural network
         nn.compile(
             loss = 'weighted_binary_crossentropy',
             optimizer = optimizer,
             )
-
         early_stopping = EarlyStopping(
             monitor = monitoring,
             patience = patience,
@@ -135,7 +150,7 @@ def train_model(file_names, labels_name, no_labels, data_path = 'data',
             restore_best_weights = True
             )
 
-        # get data
+        # get training data
         X_train = load_npz(tfidf_path)
         Y_train = np.asarray(pd.read_csv(labels_path, header = None))
         Y_train = Y_train[:, 1:].astype('int8')
@@ -156,7 +171,6 @@ def train_model(file_names, labels_name, no_labels, data_path = 'data',
         print("Producing predictions...")
         t_probs = np.asarray(nn.predict(X_train, batch_size = 32))
 
-        # find optimal threshold value based on training data
         print("Finding optimal threshold value...")
         current_f1 = threshold_f1(t_probs, 0.00, Y_train)
         step_size = 0.10
@@ -172,7 +186,6 @@ def train_model(file_names, labels_name, no_labels, data_path = 'data',
                 break
         print(f"Optimal threshold value is {np.around(threshold * 100, 2)}%")
 
-        # evaluate the network
         print("Calculating scores...")
         t_preds = np.asarray([multilabel_bins(prob, threshold) 
             for prob in t_probs])
@@ -197,7 +210,7 @@ def train_model(file_names, labels_name, no_labels, data_path = 'data',
         
         # print and store scores
         log_text = \
-f'''\n\n~~~ {file_name}_{labels_name} ~~~
+f'''\n\n~~~ {file_name} ~~~
 Datetime = {datetime.now()}
 Training duration: {duration}
 Neurons in each layer: {neurons}
@@ -246,13 +259,9 @@ Micro-average F1 score: {np.around(v_f1 * 100, 2)}%\n '''
         plt.legend()
         plt.savefig(plot_path)
 
-        # save nn
-        nn_path = os.path.join(data_path, f"{file_name}_nn.h5")
+        # save nn and nn data
         nn.save(nn_path)
-
-        # save nn data
-        nn_data_path = os.path.join(data_path, f"{file_name}_nn_data.pickle")
-        nn_data = {'threshold' : threshold}
+        nn_data = {'threshold' : threshold, 'pos_weight' : pos_weight}
         with open(nn_data_path, 'wb+') as pickle_out:
             pickle.dump(nn_data, pickle_out)
 
@@ -274,20 +283,25 @@ if __name__ == '__main__':
     # reminder: 1hot has 153 cats, 1hot_agg has 7 cats
     #           [1024, 1024] neurons is good for 1hot
     #           [64, 64] neurons is good for 1hot_agg
-    train_model(
-        file_names,
-        val_name = 'arxiv_val',
-        labels_name = '1hot_agg',
-        no_labels = 7,
-        data_path = data_path,
-        pos_weight = 1,
-        activation = 'elu',
-        neurons = [64, 64],
-        input_dropout = 0.2,
-        hidden_dropout = 0.5,
-        monitoring = 'val_loss',
-        patience = 10,
-        batch_size = 1024,
-        optimizer = 'nadam',
-        max_epochs = 1000000
-        )
+
+    for input_dropout in np.arange(0, 0.3, 0.1):
+        for hidden_dropout in np.arange(0, 0.6, 0.1):
+            for batch_size in [32, 64, 128, 256, 512]:
+                for pos_weight in np.arange(1, 2, 0.1):
+                    for neurons in [[64, 64], [128, 128, 64, 64, 32, 32]]:
+                        train_model(
+                            file_names,
+                            val_name = 'arxiv_val',
+                            labels = 7,
+                            data_path = data_path,
+                            pos_weight = pos_weight,
+                            activation = 'elu',
+                            neurons = neurons,
+                            input_dropout = input_dropout,
+                            hidden_dropout = hidden_dropout,
+                            monitoring = 'val_loss',
+                            patience = 5,
+                            batch_size = batch_size,
+                            optimizer = 'nadam',
+                            max_epochs = 1000000
+                            )
