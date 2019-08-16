@@ -157,7 +157,7 @@ def get_rows(file_name, data_path = 'data'):
     file_path = os.path.join(data_path, f'{file_name}.csv')
     with open(file_path, 'rb+') as file_in:
         rows = sum(1 for row in file_in
-                   if 'arxiv.org/abs' in row.decode('utf-8'))
+                   if 'arxiv.org/pdf' in row.decode('utf-8'))
     return rows
 
 def basic_clean(series):
