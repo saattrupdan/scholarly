@@ -56,7 +56,6 @@ def setup(data_path = "data"):
     # create data directory
     if not os.path.isdir(data_path):
         os.system(f"mkdir {data_path}")
-        print(f"Created {data_path} directory")
 
     url_start = f"https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data/"
 
@@ -283,12 +282,10 @@ def clean_file(file_name, batch_size = 1024, data_path = "data", rows = None):
 
     # load English spaCy model for lemmatising
     nlp_model = spacy.load('en', disable=['parser', 'ner'])
-        
+
     # create directory for the temporary files
     if not os.path.isdir(temp_dir):
         os.system(f"mkdir {temp_dir}")
-
-    print("Cleaning file...")
 
     # set up batches
     cat_cleaner = partial(
@@ -303,9 +300,8 @@ def clean_file(file_name, batch_size = 1024, data_path = "data", rows = None):
         chunksize = batch_size,
         header = 0
         )
-
-    # set up multiprocessing
-    pool = multiprocessing.Pool()
+   
+    # define cleaning function 
     cleaner = partial(
         clean_batch,
         temp_dir = temp_dir,
@@ -317,31 +313,34 @@ def clean_file(file_name, batch_size = 1024, data_path = "data", rows = None):
         )
 
     # clean file in parallel batches and show progress bar
-    for _ in tqdm(pool.imap(cleaner, enumerate(batches)),
-        total = np.ceil(rows / batch_size)):
-        pass
-    pool.close()
-    pool.join()
+    with multiprocessing.Pool() as pool:
+        clean_iter = pool.imap(cleaner, enumerate(batches))
+        clean_iter = tqdm(clean_iter, total = np.ceil(rows / batch_size))
+        clean_iter.set_description("Cleaning file...")
+        for _ in clean_iter:
+            pass
     
-    print("Merging and removing temporary files...")
-    # merge temporary agg files
-    with open(labels_agg_path, 'wb+') as file_out:
-        for i in itertools.count():
-            try:
-                with open(temp_agg_path(i), "rb+") as file_in:
-                    shutil.copyfileobj(file_in, file_out)
-            except IOError:
-                break
-
-    # merge temporary individual cat files
-    for agg_cat in all_agg_cats:
-        with open(labels_path(agg_cat), 'wb+') as file_out:
-            for i in itertools.count():
-                try:
-                    with open(temp_path(agg_cat, i), "rb+") as file_in:
-                        shutil.copyfileobj(file_in, file_out)
-                except IOError:
-                    break
+    # merge temporary files
+    cats_iter = tqdm(iter(np.append(all_agg_cats, 'agg')),
+                total = all_agg_cats.size + 1)
+    cats_iter.set_description("Merging and removing temporary files...")
+    for agg_cat in cats_iter:
+        if agg_cat == 'agg':
+            with open(labels_agg_path, 'wb+') as file_out:
+                for i in itertools.count():
+                    try:
+                        with open(temp_agg_path(i), "rb+") as file_in:
+                            shutil.copyfileobj(file_in, file_out)
+                    except IOError:
+                        break
+        else:
+            with open(labels_path(agg_cat), 'wb+') as file_out:
+                for i in itertools.count():
+                    try:
+                        with open(temp_path(agg_cat, i), "rb+") as file_in:
+                            shutil.copyfileobj(file_in, file_out)
+                    except IOError:
+                        break
     
     # remove temporary files
     shutil.rmtree(temp_dir)
@@ -355,14 +354,15 @@ def extract_tfidf(file_name, rows, data_path = "data"):
     tfidf_model_path = os.path.join(data_path, tfidf_model_fname)
     text_path = os.path.join(data_path, f"{file_name}_labels_agg.csv")
 
-    print("Extracting tf-idf features...")
     data = iter(pd.read_csv(
         text_path, 
         header = None, 
         encoding = 'utf-8'
         ).iloc[:, 0])
-    tfidf = TfidfVectorizer(max_features = 15000, ngram_range = (1, 3))
-    tfidf_data = tfidf.fit_transform(tqdm(data, total = rows))
+    tfidf = TfidfVectorizer(max_features = 10000, ngram_range = (1, 3))
+    data_iter = tqdm(data, total = rows)
+    data_iter.set_description("Extracting tf-idf features...")
+    tfidf_data = tfidf.fit_transform(data_iter)
     save_npz(tfidf_path, tfidf_data)
     with open(tfidf_model_path, 'wb+') as pickle_out:
         pickle.dump(tfidf, pickle_out)

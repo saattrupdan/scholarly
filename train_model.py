@@ -248,7 +248,7 @@ Micro-average F1 score: {np.around(v_f1 * 100, 2)}%\n '''
 
         # plot the training loss and accuracy
         eff_epochs = len(H.history['loss'])
-        N = range(0, eff_epochs)
+        N = range(eff_epochs)
         plt.style.use("ggplot")
         plt.figure()
         plt.plot(N, H.history["loss"], label = "train_loss")
