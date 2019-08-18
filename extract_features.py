@@ -316,14 +316,14 @@ def clean_file(file_name, batch_size = 1024, data_path = "data", rows = None):
     with multiprocessing.Pool() as pool:
         clean_iter = pool.imap(cleaner, enumerate(batches))
         clean_iter = tqdm(clean_iter, total = np.ceil(rows / batch_size))
-        clean_iter.set_description("Cleaning file...")
+        clean_iter.set_description("Cleaning file")
         for _ in clean_iter:
             pass
     
     # merge temporary files
     cats_iter = tqdm(iter(np.append(all_agg_cats, 'agg')),
                 total = all_agg_cats.size + 1)
-    cats_iter.set_description("Merging and removing temporary files...")
+    cats_iter.set_description("Merging and removing temporary files")
     for agg_cat in cats_iter:
         if agg_cat == 'agg':
             with open(labels_agg_path, 'wb+') as file_out:
@@ -359,9 +359,9 @@ def extract_tfidf(file_name, rows, data_path = "data"):
         header = None, 
         encoding = 'utf-8'
         ).iloc[:, 0])
-    tfidf = TfidfVectorizer(max_features = 10000, ngram_range = (1, 3))
+    tfidf = TfidfVectorizer(max_features = 15000)
     data_iter = tqdm(data, total = rows)
-    data_iter.set_description("Extracting tf-idf features...")
+    data_iter.set_description("Extracting tf-idf features")
     tfidf_data = tfidf.fit_transform(data_iter)
     save_npz(tfidf_path, tfidf_data)
     with open(tfidf_model_path, 'wb+') as pickle_out:
