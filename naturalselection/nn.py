@@ -182,23 +182,19 @@ def train_fnn(fnn, train_val_sets, loss_fn = 'binary_crossentropy',
     if score == 'accuracy':
         Y_hat = np.greater(Y_hat, 0.5)
         fitness = accuracy_score(Y_val, Y_hat)
-        #fitness = np.divide(1, np.subtract(1, fitness))
     elif score == 'f1':
         Y_hat = np.greater(Y_hat, 0.5)
         fitness = f1_score(Y_val, Y_hat, average = average)
-        #fitness = np.divide(1, np.subtract(1, fitness))
     elif score == 'precision':
         Y_hat = np.greater(Y_hat, 0.5)
         fitness = precision_score(Y_val, Y_hat, average = average)
-        #fitness = np.divide(1, np.subtract(1, fitness))
     elif score == 'recall':
         Y_hat = np.greater(Y_hat, 0.5)
         fitness = recall_score(Y_val, Y_hat, average = average)
-        #fitness = np.divide(1, np.subtract(1, fitness))
     elif score == 'loss':
-        Y_hat = np.greater(Y_hat, 0.5)
         fitness = np.divide(1, nn.evaluate(X_val, Y_val))
     else:
+        # Custom scoring function
         fitness = score(Y_val, Y_hat)
     
     # Clear tensorflow session to avoid memory leak

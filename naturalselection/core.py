@@ -131,7 +131,8 @@ class Population():
         (Genus) genus
         (int) size
         (function) fitness_fn
-        (function) post_fn: Function to be applied to fitness values in plots
+        (function) post_fn: Function to be applied to fitness values after
+                   evolution is finished
         (dict) initial_genome = None: this will construct a homogenous
                population only consisting of the initial genome, for a
                warm start
@@ -339,10 +340,9 @@ class Population():
         '''
     
         history = History(
-            population_size = self.size,
+            population = self,
             generations = generations,
-            memory = memory,
-            post_fn = self.post_fn
+            memory = memory
             )
 
         if progress_bars:
@@ -374,7 +374,7 @@ class Population():
                 )
 
             if verbose >= 2:
-                print("\nFitness values:")
+                print("\n\nFitness values:")
                 print(fitnesses)
 
             history.add_entry(
@@ -429,16 +429,16 @@ class Population():
                 print(self.get_genomes())
                 print(f"\nMean fitness: {np.mean(fitnesses)}")
                 print(f"Std fitness: {np.std(fitnesses)}")
-                print(f"Fittest so far: {history.fittest}\n")
 
             if verbose:
-                print("Best genome so far:")
+                if progress_bars >= 2 and verbose == 1:
+                    print("")
+                print(f"\nFittest so far: {history.fittest}")
                 print(history.fittest)
 
             if verbose >= 3:
-                input("Press Enter to continue...")
+                input("\nPress Enter to continue...")
 
-        # Print a blank line if we're using two progress bars 
         if progress_bars >= 2:
             print("")
 
@@ -447,25 +447,27 @@ class Population():
 class History():
     ''' History of a population's evolution.
         
-        INPUT
-            (int) population_size
-            (int) generations
-            (int or string) memory = 20: how many generations the
-                            population can look back to avoid redundant
-                            fitness computations, where 'inf' means unlimited
-                            memory.
+    INPUT
+        (Population) population
+        (int) generations
+        (int or string) memory = 20: how many generations the
+                        population can look back to avoid redundant
+                        fitness computations, where 'inf' means unlimited
+                        memory.
     '''
 
-    def __init__(self, population_size, generations, memory = 20,
-        post_fn = lambda x: x):
+    def __init__(self, population, generations, memory = 20):
 
-        self.post_fn = post_fn
         if memory == 'inf' or memory > generations:
             self.memory = generations
         else:
             self.memory = memory
-        self.genome_history = np.empty((self.memory, population_size), dict)
-        self.fitness_history = np.empty((generations, population_size), float)
+
+        pop_size = population.shape[0]
+        self.genome_history = np.empty((self.memory, pop_size), dict)
+        self.fitness_history = np.empty((generations, pop_size), float)
+
+        self.population = population
         self.fittest = {'genome' : None, 'fitness' : 0}
     
     def add_entry(self, genomes, fitnesses, generation):
@@ -476,7 +478,7 @@ class History():
             (ndarray) fitnesses: array of fitnesses
         '''
 
-        post_fitnesses = np.vectorize(self.post_fn)(fitnesses)
+        post_fitnesses = np.vectorize(self.population.post_fn)(fitnesses)
         if max(post_fitnesses) > self.fittest['fitness']:
             self.fittest['genome'] = genomes[np.argmax(post_fitnesses)]
             self.fittest['fitness'] = max(post_fitnesses)
@@ -508,7 +510,7 @@ class History():
             (int) max_points = 100: maximum number of points on the plot
         '''
         
-        fits = np.vectorize(self.post_fn)(self.fitness_history)
+        fits = np.vectorize(self.population.post_fn)(self.fitness_history)
         gens = fits.shape[0]
         means = np.mean(fits, axis = 1)
         stds = np.std(fits, axis = 1)
@@ -530,11 +532,12 @@ class History():
             plt.plot(xs, maxs[xs], '--', color = 'blue', label = 'max')
 
         if discrete:
-            plt.errorbar(xs, means[xs], stds[xs], fmt = 'ok', label = 'mean and std')
+            plt.errorbar(xs, means[xs], stds[xs], fmt = 'ok', 
+                label = 'mean and std')
         else:
             plt.plot(xs, means[xs], '-', color = 'black', label = 'mean')
-            plt.fill_between(xs, means[xs] - stds[xs], means[xs] + stds[xs], alpha = 0.2,
-                color = 'gray', label = 'std')
+            plt.fill_between(xs, means[xs] - stds[xs], means[xs] + stds[xs],
+                alpha = 0.2, color = 'gray', label = 'std')
 
         if legend:
             plt.legend(loc = legend_location)
