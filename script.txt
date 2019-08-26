@@ -1,3 +1,0 @@
-python3 extract_features.py
-python3 train_model.py
-
