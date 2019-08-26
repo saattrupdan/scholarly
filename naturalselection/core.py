@@ -463,7 +463,7 @@ class History():
         else:
             self.memory = memory
 
-        pop_size = population.shape[0]
+        pop_size = population.size
         self.genome_history = np.empty((self.memory, pop_size), dict)
         self.fitness_history = np.empty((generations, pop_size), float)
 
