@@ -281,7 +281,7 @@ def clean_file(file_name, batch_size = 1024, data_path = "data", rows = None):
     temp_path = lambda cat, i: os.path.join(temp_dir, temp_fname(cat, i))
 
     # load English spaCy model for lemmatising
-    nlp_model = spacy.load('en', disable=['parser', 'ner'])
+    nlp_model = spacy.load('en_core_web_sm')
 
     # create directory for the temporary files
     if not os.path.isdir(temp_dir):
@@ -315,7 +315,8 @@ def clean_file(file_name, batch_size = 1024, data_path = "data", rows = None):
     # clean file in parallel batches and show progress bar
     with multiprocessing.Pool() as pool:
         clean_iter = pool.imap(cleaner, enumerate(batches))
-        clean_iter = tqdm(clean_iter, total = np.ceil(rows / batch_size))
+        clean_iter = tqdm(clean_iter,
+            total = np.ceil(rows / batch_size).astype(int))
         clean_iter.set_description("Cleaning file")
         for _ in clean_iter:
             pass

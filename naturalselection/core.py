@@ -5,6 +5,9 @@ import time
 from functools import partial, reduce
 from itertools import permutations, chain
 
+# Suppressing warnings
+import warnings
+
 # Plots
 import matplotlib.pyplot as plt
 
@@ -232,33 +235,38 @@ class Population():
             if isinstance(generation, int):
                 progress_text = f"Computing fitness for gen {generation}"
             else:
-                progress_text = f"Computing fitness"
+                progress_text = "Computing fitness"
 
             # Compute fitness values without computing the same one twice
             fn = self.fitness_fn
             with suppress_stdout():
-                if multiprocessing:
-                    with Pool(workers) as pool:
+                with warnings.catch_warnings():
+                    f1_warn = 'F-score is ill-defined and being set to ' \
+                              '0.0 due to no predicted samples.'
+                    warnings.filterwarnings('ignore', message = f1_warn)
+
+                    if multiprocessing:
+                        with Pool(workers) as pool:
+                            if progress_bar:
+                                fit_iter = tqdm(zip(unique_indices, 
+                                    pool.imap(fn, unique_orgs)),
+                                    total = unique_orgs.size)
+                                fit_iter.set_description(progress_text)
+                            else:
+                                fit_iter = zip(unique_indices,
+                                    pool.map(fn, unique_orgs))
+                            for (i, new_fitness) in fit_iter:
+                                fitnesses[i] = new_fitness
+                    else:
                         if progress_bar:
-                            fit_iter = tqdm(zip(unique_indices, 
-                                pool.imap(fn, unique_orgs)),
+                            fit_iter = tqdm(zip(unique_indices,
+                                map(fn, unique_orgs)),
                                 total = unique_orgs.size)
                             fit_iter.set_description(progress_text)
                         else:
-                            fit_iter = zip(unique_indices,
-                                pool.map(fn, unique_orgs))
+                            fit_iter = zip(unique_indices,map(fn, unique_orgs))
                         for (i, new_fitness) in fit_iter:
                             fitnesses[i] = new_fitness
-                else:
-                    if progress_bar:
-                        fit_iter = tqdm(zip(unique_indices,
-                            map(fn, unique_orgs)),
-                            total = unique_orgs.size)
-                        fit_iter.set_description(progress_text)
-                    else:
-                        fit_iter = zip(unique_indices, map(fn, unique_orgs))
-                    for (i, new_fitness) in fit_iter:
-                        fitnesses[i] = new_fitness
 
         # Copy out the fitness values to the other organisms with same genome
         for (i, org) in enumerate(pop):

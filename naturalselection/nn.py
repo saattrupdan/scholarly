@@ -8,7 +8,8 @@ from itertools import permutations, chain, product, count
 # Neural network packages
 import tensorflow.compat.v1 as tf
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Dense, Dropout
+from tensorflow.keras.layers import Input, Dense, Dropout, Flatten
+from tensorflow.keras.layers import Conv2D, MaxPool2D, BatchNormalization
 from tensorflow.keras.callbacks import Callback, EarlyStopping
 from tensorflow.keras import backend as K
 from sklearn.metrics import accuracy_score
@@ -40,7 +41,11 @@ class FNN(Genus):
     def __init__(self,
         max_number_of_hidden_layers = 5,
         dropout = np.arange(0, 0.6, 0.1),
-        neurons_per_hidden_layer = np.array([2 ** n for n in range(4, 11)]),
+        maxpools = np.arange(1, 5),
+        batchnorms = np.array([True, False]),
+        kernelsizes = np.arange(2, 5),
+        filters = np.array([2 ** n for n in range(1, 11)]),
+        neurons = np.array([2 ** n for n in range(4, 13)]),
         optimizer = np.array(['sgd', 'rmsprop', 'adagrad', 'adadelta',
                               'adamax', 'adam', 'nadam']),
         hidden_activation = np.array(['relu', 'elu', 'softplus', 'softsign']),
@@ -55,15 +60,20 @@ class FNN(Genus):
         self.initializer = np.unique(np.asarray(initializer))
         self.input_dropout = np.unique(np.asarray(dropout))
 
-        layers = np.unique(np.append(neurons_per_hidden_layer, 0))
+        neurons = np.unique(np.append(neurons, 0))
         dropout = np.around(np.unique(np.append(dropout, 0)), 2)
+        maxpools = np.unique(np.append(maxpools, 1))
+        kernelsizes = np.unique(np.append(dropout, 2))
 
-        layers_dropout = {}
+        layer_info = {}
         for layer_idx in range(max_number_of_hidden_layers):
-            layers_dropout[f"layer{layer_idx}"] = layers
-            layers_dropout[f"dropout{layer_idx}"] = dropout
+            layer_info[f"neurons{layer_idx}"] = neurons
+            layer_info[f'layertype{layer_idx}'] = np.array(['Dense', 'Conv2D'])
+            layer_info[f"maxpool{layer_idx}"] = maxpools
+            layer_info[f"batchnorm{layer_idx}"] = batchnorms
+            layer_info[f"dropout{layer_idx}"] = dropout
 
-        self.__dict__.update(layers_dropout)
+        self.__dict__.update(layer_info)
 
 class TimeStopping(Callback):
     ''' Callback to stop training when enough time has passed.
@@ -132,10 +142,30 @@ def train_fnn(fnn, train_val_sets, loss_fn = 'binary_crossentropy',
     x = Dropout(fnn.input_dropout)(inputs)
     for i in count():
         try:
-            layer = fnn.__dict__[f"layer{i}"]
-            if layer:
-                x = Dense(layer, activation = fnn.hidden_activation,
+            layertype = fnn.__dict__[f"layertype{i}"]
+            neurons = fnn.__dict__[f"neurons{i}"]
+            filters = fnn.__dict__[f"filters{i}"]
+            kernelsize = fnn.__dict__[f"kernelsize{i}"]
+            if neurons and layertype == 'Dense':
+                if x.shape == 3:
+                    x = Flatten()(x)
+                x = Dense(neuron, activation = fnn.hidden_activation,
                     kernel_initializer = fnn.initializer)(x)
+            elif filters and layertype == 'Conv2D':
+                if x.shape == 2:
+                    dim = int(np.sqrt(x.shape[1].value / 2))
+                    x = tf.reshape(x, [-1, dim, dim, 2])
+                x = Conv2D(filters = filters, kernel_size = kernelsize,
+                    activation = fnn.hidden_activation)(x)
+
+            batchnorm = fnn.__dict__[f"batchnorm{i}"]
+            if batchnorm:
+                x = BatchNormalization()(x)
+
+            maxpool = fnn.__dict__[f"maxpool{i}"]
+            if maxpool:
+                x = MaxPool2D(maxpool)(x)
+
             dropout = fnn.__dict__[f"dropout{i}"]
             if dropout:
                 x = Dropout(dropout)(x)

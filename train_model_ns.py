@@ -43,7 +43,7 @@ def train_model(file_name, data_path = 'data', val_name = 'arxiv_val',
         loss_fn = 'binary_crossentropy',
         score = 'f1',
         output_activation = 'sigmoid',
-        max_training_time = 60
+        max_training_time = 300
         )
 
     fnns = ns.Population(
@@ -54,7 +54,6 @@ def train_model(file_name, data_path = 'data', val_name = 'arxiv_val',
 
     history = fnns.evolve(
         generations = 20,
-        multiprocessing = False,
         verbose = verbose
         )
     
@@ -72,7 +71,7 @@ if __name__ == '__main__':
     home_dir = str(Path.home())
     data_path = os.path.join(home_dir, "pCloudDrive", "public_folder",
         "scholarly_data")
-    file_name = 'arxiv_sample_1000'
+    file_name = 'arxiv'
 
     # Reminder: there are 153 labels and 7 aggregated labels
     #
@@ -88,5 +87,5 @@ if __name__ == '__main__':
         file_name = file_name,
         val_name = 'arxiv_val',
         data_path = data_path,
-        verbose = 2
+        verbose = 3
         )
