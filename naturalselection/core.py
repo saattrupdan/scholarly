@@ -1,9 +1,7 @@
 import numpy as np
 import sys
 import os
-import time
-from functools import partial, reduce
-from itertools import permutations, chain
+from functools import reduce
 
 # Suppressing warnings
 import warnings
@@ -16,19 +14,6 @@ from tqdm import tqdm, trange
 
 # Parallelising fitness
 from multiprocessing import Pool, cpu_count
-
-# Used to suppress console output
-from contextlib import contextmanager
-@contextmanager
-def suppress_stdout():
-    with open(os.devnull, "w") as devnull:
-        old_stdout = sys.stdout
-        sys.stdout = devnull
-        try:  
-            yield
-        finally:
-            sys.stdout = old_stdout
-
 
 class Genus():
     ''' Storing information about all the possible gene combinations.
@@ -88,10 +73,11 @@ class Organism():
 
         self.__dict__.update(genome)
         self.genus = genus
+        self.fitness = 0
 
     def get_genome(self):
-        attrs = self.__dict__.items()
-        return {key : val for (key, val) in attrs if key != 'genus'}
+        return {key : val for (key, val) in self.__dict__.items()
+            if key not in {'genus', 'fitness'}}
 
     def breed(self, other):
         ''' Breed organism with another organism, returning a new
@@ -116,11 +102,19 @@ class Organism():
 
         return Organism(self.genus, **child_genome)
 
-    def mutate(self):
-        ''' Return mutated version of the organism, where the mutated version
-            will on average have one gene different from the original. '''
+    def mutate(self, mutation_factor = 'default'):
+        ''' Return mutated version of the organism.
+        
+        INPUT
+            (float or string) mutation_factor = 'default': given that an
+                              organism is being mutated, the probability that
+                              a given gene is changed. Defaults to 1/k, where
+                              k is the size of the population
+        '''
         keys = np.asarray(list(self.get_genome().keys()))
-        mut_idx = np.less(np.random.random(keys.size), np.divide(1, keys.size))
+        if mutation_factor == 'default':
+            mutation_factor = np.divide(1, keys.size)
+        mut_idx = np.less(np.random.random(keys.size), mutation_factor)
         mut_vals = {key : self.genus.__dict__[key]\
             [np.random.choice(range(self.genus.__dict__[key].shape[0]))]
             for key in keys[mut_idx]}
@@ -134,19 +128,15 @@ class Population():
         (Genus) genus
         (int) size
         (function) fitness_fn
-        (function) post_fn: Function to be applied to fitness values after
-                   evolution is finished
         (dict) initial_genome = None: this will construct a homogenous
                population only consisting of the initial genome, for a
                warm start
         '''
 
-    def __init__(self, genus, size, fitness_fn, post_fn = lambda x: x,
-        initial_genome = None):
+    def __init__(self, genus, size, fitness_fn, initial_genome = None):
 
         self.genus = genus
         self.size = size
-        self.post_fn = post_fn
         
         # Fitness function must be pickleable, so in particular it
         # cannot be a lambda expression
@@ -157,6 +147,8 @@ class Population():
                 [Organism(genus, **initial_genome) for _ in range(size)])
         else:
             self.population = genus.create_organisms(size)
+
+        self.fittest = np.random.choice(self.population)
 
     def get_genomes(self):
         return np.asarray([o.get_genome() for o in self.population])
@@ -233,40 +225,40 @@ class Population():
             unique_orgs = pop[unique_indices]
 
             if isinstance(generation, int):
-                progress_text = f"Computing fitness for gen {generation}"
+                progress_text = "Computing fitness for gen {}"\
+                    .format(generation)
             else:
                 progress_text = "Computing fitness"
 
             # Compute fitness values without computing the same one twice
             fn = self.fitness_fn
-            with suppress_stdout():
-                with warnings.catch_warnings():
-                    f1_warn = 'F-score is ill-defined and being set to ' \
-                              '0.0 due to no predicted samples.'
-                    warnings.filterwarnings('ignore', message = f1_warn)
+            with warnings.catch_warnings():
+                f1_warn = 'F-score is ill-defined and being set to ' \
+                          '0.0 due to no predicted samples.'
+                warnings.filterwarnings('ignore', message = f1_warn)
 
-                    if multiprocessing:
-                        with Pool(workers) as pool:
-                            if progress_bar:
-                                fit_iter = tqdm(zip(unique_indices, 
-                                    pool.imap(fn, unique_orgs)),
-                                    total = unique_orgs.size)
-                                fit_iter.set_description(progress_text)
-                            else:
-                                fit_iter = zip(unique_indices,
-                                    pool.map(fn, unique_orgs))
-                            for (i, new_fitness) in fit_iter:
-                                fitnesses[i] = new_fitness
-                    else:
+                if multiprocessing:
+                    with Pool(processes = workers) as pool:
                         if progress_bar:
-                            fit_iter = tqdm(zip(unique_indices,
-                                map(fn, unique_orgs)),
+                            fit_iter = tqdm(zip(unique_indices, 
+                                pool.imap(fn, unique_orgs)),
                                 total = unique_orgs.size)
                             fit_iter.set_description(progress_text)
                         else:
-                            fit_iter = zip(unique_indices,map(fn, unique_orgs))
+                            fit_iter = zip(unique_indices,
+                                pool.map(fn, unique_orgs))
                         for (i, new_fitness) in fit_iter:
                             fitnesses[i] = new_fitness
+                else:
+                    if progress_bar:
+                        fit_iter = tqdm(zip(unique_indices,
+                            map(fn, unique_orgs)),
+                            total = unique_orgs.size)
+                        fit_iter.set_description(progress_text)
+                    else:
+                        fit_iter = zip(unique_indices,map(fn, unique_orgs))
+                    for (i, new_fitness) in fit_iter:
+                        fitnesses[i] = new_fitness
 
         # Copy out the fitness values to the other organisms with same genome
         for (i, org) in enumerate(pop):
@@ -281,7 +273,7 @@ class Population():
         return fitnesses
 
 
-    def sample(self, fitnesses, amount = 1):
+    def sample(self, amount = 1):
         ''' Sample a fixed amount of organisms from the population,
             where the fitter an organism is, the more it's likely
             to be chosen. 
@@ -296,6 +288,7 @@ class Population():
         pop = self.population
 
         # Convert fitness values into probabilities
+        fitnesses = np.array([org.fitness for org in pop])
         probs = np.divide(fitnesses, sum(fitnesses))
 
         # Sort the probabilities in descending order and sort the
@@ -320,9 +313,9 @@ class Population():
         return pop[indices.astype(int)]
 
     def evolve(self, generations = 1, breeding_rate = 0.8,
-        mutation_rate = 0.2, elitism_rate = 0.05, multiprocessing = True,
-        workers = cpu_count(), progress_bars = 2, memory = 20, goal = None,
-        verbose = 0):
+        mutation_rate = 0.2, mutation_factor = 'default', elitism_rate = 0.05,
+        multiprocessing = True, workers = cpu_count(), progress_bars = 2,
+        memory = 20, goal = None, verbose = 0):
         ''' Evolve the population.
 
         INPUT
@@ -330,6 +323,10 @@ class Population():
             (float) breeding_rate = 0.8: percentage of population to breed 
             (float) mutation_rate = 0.2: percentage of population to mutate
                     each generation
+            (float or string) mutation_factor = 'default': given that an
+                              organism is being mutated, the probability that
+                              a given gene is changed. Defaults to 1/k, where
+                              k is the size of the population
             (float) elitism rate = 0.05: percentage of population to keep
                     across generations
             (bool) multiprocessing = True: whether fitnesses should be
@@ -361,7 +358,7 @@ class Population():
 
         for generation in gen_iter:
 
-            if goal and history.fittest['fitness'] >= goal:
+            if goal and self.fittest.fitness >= goal:
                 history.fitness_history = \
                     history.fitness_history[:generation, :]
                 # Close tqdm iterator
@@ -370,9 +367,9 @@ class Population():
                 break
 
             if verbose >= 2:
-                print(f"\n\n~~~ GENERATION {generation} ~~~")
+                print("\n\n~~~ GENERATION {} ~~~".format(generation))
 
-            # Select the portion of the population that will breed
+            # Compute fitness values
             fitnesses = self.get_fitness(
                 multiprocessing = multiprocessing,
                 workers = workers,
@@ -380,31 +377,38 @@ class Population():
                 history = history,
                 generation = generation
                 )
+           
+            # Update fitness values 
+            for (i, org) in enumerate(self.population):
+                org.fitness = fitnesses[i]
 
-            if verbose >= 2:
-                print("\n\nFitness values:")
-                print(fitnesses)
+            if max(fitnesses) > self.fittest.fitness:
+                self.fittest = self.population[np.argmax(fitnesses)]
 
+            # Store genomes and fitness values in history
             history.add_entry(
                 genomes = self.get_genomes(),
                 fitnesses = fitnesses,
                 generation = generation
                 )
 
+            if verbose >= 2:
+                print("\n\nFitness values:", fitnesses)
+
             # Select elites 
             elites_amt = np.ceil(self.size * elitism_rate).astype(int)
             if elitism_rate:
-                elites = self.sample(fitnesses, amount = elites_amt)
+                elites = self.sample(amount = elites_amt)
 
                 if verbose >= 2:
-                    print(f"\nElite pool, of size {elites_amt}:")
+                    print("\nElite pool, of size {}:".format(elites_amt))
                     print(np.array([org.get_genome() for org in elites]))
 
             breeders_amt = max(2, np.ceil(self.size*breeding_rate).astype(int))
-            breeders = self.sample(fitnesses, amount = breeders_amt)
+            breeders = self.sample(amount = breeders_amt)
 
             if verbose >= 2:
-                print(f"\nBreeding pool, of size {breeders_amt}:")
+                print("\nBreeding pool, of size {}:".format(breeders_amt))
                 print(np.array([org.get_genome() for org in breeders]))
                 print("\nBreeding...")
 
@@ -418,13 +422,14 @@ class Population():
             mutators = np.less(np.random.random(children_amt), mutation_rate)
 
             if verbose >= 2:
-                print(f"\nMutation pool, of size {children[mutators].size}:")
+                print("\nMutation pool, of size {}:"\
+                    .format(children[mutators].size))
                 print(np.array([c.get_genome() for c in children[mutators]]))
                 print("\nMutating...")
 
             # Mutate the children
             for mutator in children[mutators]:
-                mutator.mutate()
+                mutator.mutate(mutation_factor = mutation_factor)
 
             # The children constitutes our new generation
             if elitism_rate:
@@ -433,16 +438,18 @@ class Population():
                 self.population = children
             
             if verbose >= 2:
-                print(f"\nNew population, of size {self.population.size}:")
+                print("\nNew population, of size {}:"\
+                    .format(self.population.size))
                 print(self.get_genomes())
-                print(f"\nMean fitness: {np.mean(fitnesses)}")
-                print(f"Std fitness: {np.std(fitnesses)}")
+                print("\nMean fitness: {}".format(np.mean(fitnesses)))
+                print("Std fitness: {}".format(np.std(fitnesses)))
 
             if verbose:
                 if progress_bars >= 2 and verbose == 1:
                     print("")
-                print(f"\nFittest so far: {history.fittest}")
-                print(history.fittest)
+                print("\nFittest so far, with fitness {}:"\
+                    .format(self.fittest.fitness))
+                print(self.fittest.get_genome())
 
             if verbose >= 3:
                 input("\nPress Enter to continue...")
@@ -486,10 +493,9 @@ class History():
             (ndarray) fitnesses: array of fitnesses
         '''
 
-        post_fitnesses = np.vectorize(self.population.post_fn)(fitnesses)
-        if max(post_fitnesses) > self.fittest['fitness']:
-            self.fittest['genome'] = genomes[np.argmax(post_fitnesses)]
-            self.fittest['fitness'] = max(post_fitnesses)
+        if max(fitnesses) > self.fittest['fitness']:
+            self.fittest['genome'] = genomes[np.argmax(fitnesses)]
+            self.fittest['fitness'] = max(fitnesses)
 
         np.roll(self.genome_history, 1, axis = 0)
         self.genome_history[0, :] = genomes
@@ -518,7 +524,7 @@ class History():
             (int) max_points = 100: maximum number of points on the plot
         '''
         
-        fits = np.vectorize(self.population.post_fn)(self.fitness_history)
+        fits = self.fitness_history
         gens = fits.shape[0]
         means = np.mean(fits, axis = 1)
         stds = np.std(fits, axis = 1)
@@ -531,7 +537,7 @@ class History():
 
         plt.style.use("ggplot")
         plt.figure()
-        plt.xlim(0, gens)
+        plt.xlim(0, gens - 1)
         plt.title(title)
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
