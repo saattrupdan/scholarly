@@ -28,16 +28,20 @@ from tensorflow.python.util import deprecation
 deprecation._PRINT_DEPRECATION_WARNINGS = False
 
 
-def classify(title, abstract, tfidf_model, nn, threshold, all_agg_cats):
+def classify(title, abstract, tfidf_model, nn, all_agg_cats):
     clean_text = pd.Series([title + abstract])
     clean_text = basic_clean(clean_text)[0]
 
-    nlp = spacy.load('en', disable=['parser', 'ner'])
+    nlp = spacy.load('en_core_web_sm')
+
     clean_text = ' '.join(np.asarray(
         [token.lemma_ for token in nlp(clean_text) if not token.is_stop]))
 
     tfidf_text = tfidf_model.transform(np.asarray([clean_text]))
-    predictions = multilabel_bins(nn.predict(tfidf_text), threshold).ravel()
+    probs = nn.predict(tfidf_text).ravel()
+    max_prob = max(probs)
+    print(list(zip(all_agg_cats, np.around(probs, 2))))
+    predictions = (probs > max_prob * 0.5).astype('int8')
     return all_agg_cats[np.nonzero(predictions)]
 
 def generate_classifier(file_name, data_path = 'data'):
@@ -50,7 +54,6 @@ def generate_classifier(file_name, data_path = 'data'):
     cats_path = os.path.join(data_path, 'cats.csv')
     tfidf_path = os.path.join(data_path, f'{file_name}_tfidf_model.pickle')
     nn_path = os.path.join(data_path, f'{file_name}_nn.h5')
-    nn_data_path = os.path.join(data_path, f'{file_name}_nn_data.pickle')
 
     # download files
     url_start = f"https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data/"
@@ -63,26 +66,17 @@ def generate_classifier(file_name, data_path = 'data'):
     if not os.path.isfile(nn_path):
         url = url_start + f"{file_name}_nn.h5"
         wget.download(url, out = nn_path)
-    if not os.path.isfile(nn_data_path):
-        url = url_start + f"{file_name}_nn_data.pickle"
-        wget.download(url, out = nn_data_path)
 
     # load in data
     cats_df = pd.read_csv(cats_path)
-    with open(nn_data_path, 'rb+') as pickle_in:
-        nn_data = pickle.load(pickle_in)
-        threshold = nn_data['threshold']
-        pos_weight = nn_data['pos_weight']
 
     # load in tf-idf model
     with open(tfidf_path, 'rb+') as pickle_in:
         tfidf_model = pickle.load(pickle_in)
 
-    # load in neural network
-    custom_objects = {'weighted_binary_crossentropy' : lambda x, y: \
-        weighted_binary_crossentropy(x, y, pos_weight = pos_weight)}
-    nn = load_model(nn_path, custom_objects = custom_objects)
-    
+    # Load in neural network model
+    nn = load_model(nn_path)
+
     # get list of all aggregated categories
     all_agg_cats = cats_df['category'].apply(aggregate_cat).unique()
     
@@ -91,7 +85,6 @@ def generate_classifier(file_name, data_path = 'data'):
         classify, 
         tfidf_model = tfidf_model, 
         nn = nn, 
-        threshold = threshold,
         all_agg_cats = all_agg_cats
         )
 
