@@ -7,3 +7,6 @@ __pycache__/*
 *.swp
 data/*
 old/*
+*.h5
+*.bin
+*.pkl

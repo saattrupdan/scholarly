@@ -1,29 +1,29 @@
-# core packages
+# Core packages
 import pandas as pd
 import numpy as np
 import os
 
-# downloading files
+# Downloading files
 import wget
 
-# used for lemmatising
+# Used for lemmatising
 import spacy
 
-# used to load things
+# Used to load things
 import pickle
 from tensorflow.keras.models import load_model
 
-# partial functions
+# Partial functions
 from functools import partial
 
-# suppress warnings
+# Suppress warnings
 import warnings
 
-# local packages
+# Local packages
 from extract_features import aggregate_cat, basic_clean
 from train_model import multilabel_bins, weighted_binary_crossentropy
 
-# suppress deprecation warnings
+# Suppress deprecation warnings
 from tensorflow.python.util import deprecation
 deprecation._PRINT_DEPRECATION_WARNINGS = False
 
@@ -46,16 +46,16 @@ def classify(title, abstract, tfidf_model, nn, all_agg_cats):
 
 def generate_classifier(file_name, data_path = 'data'):
 
-    # set up directory
+    # Set up directory
     if not os.path.isdir(data_path):
         os.system(f"mkdir {data_path}")
 
-    # set up paths
+    # Set up paths
     cats_path = os.path.join(data_path, 'cats.csv')
     tfidf_path = os.path.join(data_path, f'{file_name}_tfidf_model.pickle')
     nn_path = os.path.join(data_path, f'{file_name}_nn.h5')
 
-    # download files
+    # Download files
     url_start = f"https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data/"
     if not os.path.isfile(cats_path):
         url = url_start + "cats.csv"
@@ -67,20 +67,20 @@ def generate_classifier(file_name, data_path = 'data'):
         url = url_start + f"{file_name}_nn.h5"
         wget.download(url, out = nn_path)
 
-    # load in data
+    # Load in data
     cats_df = pd.read_csv(cats_path)
 
-    # load in tf-idf model
+    # Load in tf-idf model
     with open(tfidf_path, 'rb+') as pickle_in:
         tfidf_model = pickle.load(pickle_in)
 
     # Load in neural network model
     nn = load_model(nn_path)
 
-    # get list of all aggregated categories
+    # Get list of all aggregated categories
     all_agg_cats = cats_df['category'].apply(aggregate_cat).unique()
     
-    # stitch together the classifier
+    # Stitch together the classifier
     classifier = partial(
         classify, 
         tfidf_model = tfidf_model, 
