@@ -1,4 +1,4 @@
-# scholarly
+# Scholarly
 Category classification of scientific papers.
 
 ## Todos
