@@ -69,7 +69,8 @@ def fetch(category, max_results = 5, start = 0):
     return papers
 
 def scrape(fname = 'arxiv', data_dir = 'data', batch_size = 1000,
-    patience = 10, max_papers_per_cat = None):
+    patience = 10, max_papers_per_cat = None, overwrite = True,
+    start_from = None):
     ''' Scrape papers from the ArXiv.
 
     INPUT
@@ -86,6 +87,10 @@ def scrape(fname = 'arxiv', data_dir = 'data', batch_size = 1000,
             to the next category
         max_papers_per_cat: int or None = None
             The maximum number of papers to fetch for each category
+        overwrite: bool = True
+            Whether the JSON file should be overwritten
+        start_from: str or None = None
+            A category to start from, where None means start from scratch
     '''
     from itertools import count, chain
     import pandas as pd
@@ -98,18 +103,26 @@ def scrape(fname = 'arxiv', data_dir = 'data', batch_size = 1000,
     if not os.path.isdir(data_dir):
         os.mkdir(data_dir)
 
-    # Get list of categories
+    # Get list of categories, sorted alphabetically
     cat_path = os.path.join(data_dir, 'cats.tsv')
     if os.path.isfile(cat_path):
         cats_df = pd.read_csv(cat_path, sep = '\t')
     else:
         cats_df = get_cats(os.path.join(data_dir, 'cats'))
-    cats = cats_df['cat']
+    cats = sorted(cats_df['cat'])
+
+    # Start from a given category
+    if start_from is not None:
+        try:
+            cats = cats[cats.index(start_from):]
+        except ValueError:
+            pass
 
     # Create empty JSON file
-    path = os.path.join(data_dir, fname + '.json')
-    with open(path, 'w') as f:
-        json.dump([], f)
+    json_path = os.path.join(data_dir, fname + '.json')
+    if overwrite:
+        with open(json_path, 'w') as f:
+            json.dump([], f)
 
     # Scraping loop
     with tqdm() as pbar:
@@ -123,12 +136,12 @@ def scrape(fname = 'arxiv', data_dir = 'data', batch_size = 1000,
                     strikes = 0
 
                     # Load previous data from JSON file
-                    with open(path, 'r') as f:
+                    with open(json_path, 'r') as f:
                         json_data = json.load(f)
 
                     # Concatenate the new data and save to new JSON file
                     json_data = list(chain(json_data, batch))
-                    with open(path, 'w') as f:
+                    with open(json_path, 'w') as f:
                         json.dump(json_data, f)
                 else:
                     strikes += 1
@@ -182,4 +195,4 @@ def get_cats(save_to = None):
 
 if __name__ == '__main__':
     pcloud_dir = '/home/dn16382/pCloudDrive/public_folder/scholarly_data'
-    scrape(data_dir = 'data', batch_size = 1000)
+    scrape(data_dir = 'data', batch_size = 1000, start_from = None)
