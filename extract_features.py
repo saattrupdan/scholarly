@@ -52,7 +52,7 @@ def clean_cats(texts, all_cats, data_path = "data"):
     # Convert string to numpy array
     arr = np.asarray(re.sub('[\' \[\]]', '', texts).split(','))
 
-    # Remove cats which isn't an ArXiv category
+    # Remove cats which are not valid ArXiv categories
     cat_arr = np.intersect1d(np.asarray(arr), all_cats)
 
     return np.nan if cat_arr.size == 0 else cat_arr
@@ -150,29 +150,14 @@ def basic_clean(series):
         '(\\*[\[\(])' + \
         '(.*?)' + \
         '(\\*[\]\)])'
-    dollar_fn = lambda x: re.sub(dollareqn, '', x)
-    bracket_fn = lambda x: re.sub(bracketeqn, '', x)
+    dollar_fn = lambda x: re.sub(dollareqn, '-EQN-', x)
+    bracket_fn = lambda x: re.sub(bracketeqn, '-EQN-', x)
     series = series.apply(dollar_fn)
     series = series.apply(bracket_fn)
 
     # Convert text to lowercase
     series = series.str.lower()
-
-    # Remove numbers
-    series = series.str.replace('[0-9]', '')
-
-    # Turn hyphens into spaces
-    series = series.str.replace('\-', ' ')
     
-    # Remove punctuation
-    punctuation = re.escape(string.punctuation)
-    punctuation_fn = lambda x: re.sub(f'[{punctuation}]', '', x)
-    series = series.apply(punctuation_fn)
-
-    # Remove whitespaces
-    rm_whitespace = lambda x:' '.join(x.split())
-    series = series.apply(rm_whitespace)
-
     return series
     
 def clean_batch(enum_batch, file_name, temp_dir, nlp_model, all_agg_cats,
