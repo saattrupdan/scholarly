@@ -1,6 +1,5 @@
 def fetch(category, max_results = 5, start = 0):
-    '''
-    Fetch papers from the arXiv.
+    ''' Fetch papers from the arXiv
 
     INPUT
         category: str
@@ -19,7 +18,7 @@ def fetch(category, max_results = 5, start = 0):
             published
             title
             abstract
-            fields
+            categories
     '''
     import requests
     from bs4 import BeautifulSoup
@@ -33,11 +32,8 @@ def fetch(category, max_results = 5, start = 0):
     }
 
     api_url = 'http://export.arxiv.org/api/query'
-    no_response = True
-    while no_response:
-        response = requests.get(api_url, params = params)
-        soup = BeautifulSoup(response._content, 'lxml')
-        no_response = soup.find_all('entry') == []
+    response = requests.get(api_url, params = params)
+    soup = BeautifulSoup(response._content, 'lxml')
 
     papers = {
         'id': [],
@@ -72,8 +68,25 @@ def fetch(category, max_results = 5, start = 0):
 
     return papers
 
-def scrape(fname = 'arxiv', data_dir = 'data', start = 0, 
-    batch_size = 1000):
+def scrape(fname = 'arxiv', data_dir = 'data', batch_size = 1000,
+    patience = 10, max_papers_per_cat = None):
+    ''' Scrape papers from the ArXiv.
+
+    INPUT
+        fname: str = 'arxiv'
+            Name of the JSON file where the data will be stored, without
+            file extension
+        data_dir: str = 'data'
+            Directory in which the data files are to be stored
+        batch_size: int = 0
+            The amount of papers fetched at each GET request. Must be at
+            most 10,000
+        patience: int = 10
+            The amount of successive failed GET requests before moving on
+            to the next category
+        max_papers_per_cat: int or None = None
+            The maximum number of papers to fetch for each category
+    '''
     from itertools import count, chain
     import pandas as pd
     import json
@@ -99,29 +112,41 @@ def scrape(fname = 'arxiv', data_dir = 'data', start = 0,
         json.dump([], f)
 
     # Scraping loop
-    with tqdm(desc = 'Scraping papers') as pbar:
-        for idx in count(start = start, step = batch_size):
-            for cat in cats:
+    with tqdm() as pbar:
+        for cat in cats:
+            pbar.set_description(f'Scraping {cat}')
+            cat_idx, strikes = 0, 0
+            while strikes <= patience:
+                batch = fetch(cat, start = cat_idx, max_results = batch_size)
+                if len(batch):
+                    # Reset strikes
+                    strikes = 0
 
-                # Get current batch
-                batch = fetch(cat, start = idx, max_results = batch_size)
+                    # Load previous data from JSON file
+                    with open(path, 'r') as f:
+                        json_data = json.load(f)
 
-                # Load previous JSON data
-                with open(path, 'r') as f:
-                    json_data = json.load(f)
+                    # Concatenate the new data and save to new JSON file
+                    json_data = list(chain(json_data, batch))
+                    with open(path, 'w') as f:
+                        json.dump(json_data, f)
+                else:
+                    strikes += 1
 
-                # Concatenate the previous data with current batch
-                json_data = list(chain(json_data, batch))
-
-                # Save current JSON data
-                with open(path, 'w') as f:
-                    json.dump(json_data, f)
-
-                # Give the API a break before continuing
+                cat_idx += len(batch)
                 pbar.update(len(batch))
                 sleep(5)
 
 def get_cats(save_to = None):
+    ''' Fetch list of all ArXiv categories from arxitics.com
+    
+    INPUT
+        save_to: str or None
+            File name to save the dataframe to, without file extension
+
+    OUTPUT
+        A Pandas DataFrame object with the categories
+    '''
     import requests
     from bs4 import BeautifulSoup
     import pandas as pd
@@ -157,4 +182,4 @@ def get_cats(save_to = None):
 
 if __name__ == '__main__':
     pcloud_dir = '/home/dn16382/pCloudDrive/public_folder/scholarly_data'
-    scrape(data_dir = pcloud_dir, start = 0, batch_size = 10000)
+    scrape(data_dir = 'data', batch_size = 1000)
