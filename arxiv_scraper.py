@@ -1,3 +1,44 @@
+class ArXivDatabase:
+    def __init__(self, db_name = 'arxiv_data', data_dir = 'data'):
+        from sqlalchemy import create_engine
+        import os
+        path = os.path.join(data_dir, db_name)
+        self.engine = create_engine(f'sqlite:///{path}')
+        if not os.path.isfile(path):
+            self.create_table()
+
+    def create_table(self):
+        from sqlalchemy import MetaData, Table, Column, String, DateTime
+        metadata = MetaData()
+        papers = Table('papers', metadata,
+            Column('id', String, primary_key = True),
+            Column('authors', String),
+            Column('updated', DateTime),
+            Column('published', DateTime),
+            Column('title', String),
+            Column('abstract', String),
+            Column('categories', String)
+        )
+        metadata.create_all(self.engine)
+        return self
+
+    def run_query(self, query):
+        with self.engine.connect as conn:
+            return conn.execute(query)
+
+    def add_row(id, authors, updated, published, title, abstract, categories):
+        query = '''insert into arxiv_data 
+                   values (id, authors, updated, published, title, 
+                           abstract, categories);'''
+        self.run_query(query)
+        return self
+
+    def print_all_data(self):
+        query = 'select * from arxiv_data;'
+        for row in self.run_query(query):
+            print(row)
+        return self
+
 def fetch(category, max_results = 5, start = 0):
     ''' Fetch papers from the arXiv
 
@@ -194,6 +235,7 @@ def get_cats(save_to = None):
     return df
 
 if __name__ == '__main__':
-    pcloud_dir = '/home/dn16382/pCloudDrive/public_folder/scholarly_data'
-    scrape(data_dir = 'data', batch_size = 10000, 
-    start_from = 'cond-mat.str-el')
+    db = ArXivDatabase()
+    #pcloud_dir = '/home/dn16382/pCloudDrive/public_folder/scholarly_data'
+    #scrape(data_dir = 'data', batch_size = 10000, 
+    #start_from = 'cond-mat.str-el')
