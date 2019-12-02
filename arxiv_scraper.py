@@ -195,4 +195,5 @@ def get_cats(save_to = None):
 
 if __name__ == '__main__':
     pcloud_dir = '/home/dn16382/pCloudDrive/public_folder/scholarly_data'
-    scrape(data_dir = 'data', batch_size = 1000, start_from = None)
+    scrape(data_dir = 'data', batch_size = 10000, 
+    start_from = 'cond-mat.str-el')
