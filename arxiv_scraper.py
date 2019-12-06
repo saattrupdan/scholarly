@@ -1,5 +1,3 @@
-import datetime
-
 class ArXivDatabase:
     ''' A SQLite databse for storing abstracts of ArXiv papers. 
     
@@ -12,16 +10,14 @@ class ArXivDatabase:
 
     def __init__(self, db_name: str = 'arxiv_data', data_dir: str = 'data'):
         from sqlalchemy import create_engine
-        import os
+        from pathlib import Path
         self.db_name = db_name
-        path = os.path.join(data_dir, db_name)
-        self.engine = create_engine(f'sqlite:///{path}')
+        self.engine = create_engine(f'sqlite:///{Path(data_dir) / db_name}')
         self.create_table()
 
     def create_table(self):
         ''' Create main table of the database. '''
-        from sqlalchemy import MetaData, Table, Column
-        from sqlalchemy import String, DateTime
+        from sqlalchemy import MetaData, Table, Column, String, DateTime
         metadata = MetaData()
         Table(self.db_name, metadata,
             Column('id', String, primary_key = True),
@@ -35,21 +31,14 @@ class ArXivDatabase:
         metadata.create_all(self.engine)
         return self
 
-    def run_query(self, query: str):
-        ''' Run any SQL query for the databse. '''
-        with self.engine.connect() as conn:
-            conn.execute(query)
-        return self
-
-    def insert_row(self, id: str, authors: str, updated: datetime.datetime, 
-        published: datetime.datetime, title: str, abstract: str, 
-        categories: str):
+    def insert_row(self, id: str, authors: str, updated, published, 
+        title: str, abstract: str, categories: str, conn = None):
         ''' Insert a row into the database.
 
         INPUT
             id: str
-                The unique ArXiv id. If a paper already exists with that
-                id then the row will not be inserted
+                The unique ArXiv id. If a paper already exists with that id
+                then the row will not be inserted
             authors: str
                 Authors of the paper, separated by commas
             updated: datetime.datetime
@@ -63,51 +52,95 @@ class ArXivDatabase:
             categories: str
                 The ArXiv categories that the paper is categorised as, 
                 separated by commas
+            conn: sqlalchemy.Connection = None
+                A connection to execute the query, which defaults to 
+                opening a new connection
         '''
         from sqlalchemy.exc import IntegrityError
-        query = f'''insert into {self.db_name}
-                    values ("{id}", "{authors}", "{updated}", 
-                            "{published}", "{title}", "{abstract}", 
-                            "{categories}");'''
+        query = (f'insert into {self.db_name} '
+                 f'values ("{id}", "{authors}", "{updated}", '
+                 f'"{published}", "{title}", "{abstract}", '
+                 f'"{categories}")')
         try:
-            self.run_query(query)
+            if conn is None:
+                with self.engine.connect() as conn:
+                    conn.execute(query)
+            else:
+                conn.execute(query)
         except IntegrityError:
             pass
+        return self
 
-    def delete_row(self, id: str):
+    def delete_row(self, id: str, conn = None):
         ''' Delete row with a given ArXiv ID.
 
         INPUT
             id: str
                 The ArXiv ID of the row to be deleted.
+            conn: sqlalchemy.Connection = None
+                The connection executing the query, which defaults to 
+                opening a new connection
         '''
         query = f'delete from {self.db_name} where id = "{id}"'
-        self.run_query(query)
+        if conn is None:
+            with self.engine.connect() as conn:
+                conn.execute(query)
+        else:
+            conn.execute(query)
+        return self
 
-    def update_row(self, id: str, **kwargs):
+    def update_row(self, id: str, conn = None, **kwargs):
         ''' Update a row in the database with a given ArXiv ID.
 
         INPUT
             id: str
                 The unique ArXiv id of the row to be updated.
+            conn = None
+                A Connection object, which will execute the query, which
+                defaults to opening a new connection
             **kwargs
                 Values to update
         '''
         changes = ', '.join(f'{col} = "{val}"' for col, val in kwargs.items())
-        query = f''' update {self.db_name}
-                     set {changes}
-                     where id = "{id}";'''
-        self.run_query(query)
-
-    def print_all_data(self):
-        ''' Print all the data in the database. '''
-        with self.engine.connect() as conn:
-            for row in conn.execute(f'select * from {self.db_name}'):
-                print(row)
+        query = (f'update {self.db_name}'
+                 f'set {changes}'
+                 f'where id = "{id}";')
+        if conn is None:
+            with self.engine.connect() as conn:
+                conn.execute(query)
+        else:
+            conn.execute(query)
         return self
 
-def fetch(category, max_results = 5, start = 0):
-    ''' Fetch papers from the arXiv
+    def to_dataframe(self):
+        ''' Convert database to a Pandas DataFrame object. '''
+        import pandas as pd
+        with self.engine.connect() as conn:
+            return pd.read_sql_table(self.db_name, conn)
+
+def clean(doc: str):
+    ''' Clean a document. '''
+    import re
+
+    # Remove newline symbols
+    doc = re.sub('\n', ' ', doc)
+
+    # Convert equations like $...$, $$...$$, $\[...\]$ or $\(...\)$ to -EQN-
+    dollareqn = '(?<!\$)\${1,2}(?!\$).*?(?<!\$)\${1,2}(?!\$)'
+    bracketeqn = '\\[\[\(].*?\\[\]\)]'
+    eqn = f'( {dollareqn} | {bracketeqn} )'
+    doc = re.sub(eqn, '-EQN-', doc)
+
+    # Remove scare quotes
+    doc = re.sub('(\\"|")', '', doc)
+
+    # Merge multiple spaces
+    doc = re.sub(r' +', ' ', doc)
+
+    return doc.strip()
+
+def fetch(category: str, max_results: int = 5, start: int = 0):
+    ''' Fetch papers from the arXiv.
 
     INPUT
         category: str
@@ -119,14 +152,23 @@ def fetch(category, max_results = 5, start = 0):
             The index of the paper from which the scraping begins
 
     OUTPUT
-        A JSON string in which each entry has the following attributes:
-            id
-            authors
-            updated
-            published
-            title
-            abstract
-            categories
+        A list of dictionaries representing each paper entry, with each
+        dictionary having the following attributes:
+            id: str
+                The unique ArXiv identifier
+            authors: str
+                The authors of the paper, separated by commas
+            updated: datetime.datetime
+                Last updated date and time
+            published: datetime.datetime
+                Date and time when the paper was published on ArXiv
+            title: str
+                Title of the paper
+            abstract: str
+                Abstract of the paper
+            categories: str
+                The ArXiv categories that the paper falls under, separated
+                by commas
     '''
     import requests
     from bs4 import BeautifulSoup
@@ -140,6 +182,7 @@ def fetch(category, max_results = 5, start = 0):
         'sortOrder': 'descending'
     }
 
+    # Perform GET request
     api_url = 'http://export.arxiv.org/api/query'
     response = requests.get(api_url, params = params)
     soup = BeautifulSoup(response._content, 'lxml')
@@ -154,32 +197,29 @@ def fetch(category, max_results = 5, start = 0):
         'categories': []
     }
 
+    # Convert data formats and store it in a list
     papers = []
     for entry in soup.find_all('entry'):
-        try:
-            cats = ','.join(cat['term'] for cat in entry.find_all('category'))
-            authors = ','.join(name.string 
-                for author in entry.find_all('author')
-                for name in author.find_all('name'))
+        cats = ','.join(cat['term'] for cat in entry.find_all('category'))
+        authors = ','.join(clean(name.string) 
+            for author in entry.find_all('author')
+            for name in author.find_all('name'))
 
-            papers.append({
-            'id': entry.id.string,
-            'authors': authors,
-            'updated': datetime.fromisoformat(entry.updated.string[:-1]),
-            'published': datetime.fromisoformat(entry.published.string[:-1]),
-            'title': entry.title.string,
-            'abstract': entry.summary.string,
-            'categories': cats
-            })
-
-        except:
-            pass
+        papers.append({
+        'id': entry.id.string,
+        'authors': authors,
+        'updated': datetime.fromisoformat(entry.updated.string[:-1]),
+        'published': datetime.fromisoformat(entry.published.string[:-1]),
+        'title': clean(entry.title.string),
+        'abstract': clean(entry.summary.string),
+        'categories': cats
+        })
 
     return papers
 
-def scrape(db_name = 'arxiv_data', data_dir = 'data', batch_size = 1000,
-    patience = 10, max_papers_per_cat = None, overwrite = True,
-    start_from = None):
+def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data', 
+    batch_size: int = 1000, patience: int = 60, overwrite: bool = False, 
+    max_papers_per_cat: int = None, start_from: int = None):
     ''' Scrape papers from the ArXiv.
 
     INPUT
@@ -188,37 +228,36 @@ def scrape(db_name = 'arxiv_data', data_dir = 'data', batch_size = 1000,
         data_dir: str = 'data'
             Directory in which the data files are to be stored
         batch_size: int = 0
-            The amount of papers fetched at each GET request. Must be at
-            most 10,000
-        patience: int = 10
+            The amount of papers fetched at each GET request - has to be 
+            below 10,000
+        patience: int = 60
             The amount of successive failed GET requests before moving on
-            to the next category
-        max_papers_per_cat: int or None = None
+            to the next category. The ArXiv API usually times out, resulting
+            in a failed GET request, so this number should be reasonably
+            large to rule these timeouts out
+        overwrite: bool = False
+            Whether the database file should be overwritten
+        max_papers_per_cat: int = None
             The maximum number of papers to fetch for each category
-        overwrite: bool = True
-            Whether the JSON file should be overwritten
-        start_from: str or None = None
-            A category to start from, where None means start from scratch
+        start_from: str = None
+            A category to start from, which defaults to starting from scratch
     '''
-    from itertools import count, chain
     import pandas as pd
-    import json
     from time import sleep
     from tqdm import tqdm
-    import os
+    from pathlib import Path
 
     # Create data directory
-    if not os.path.isdir(data_dir):
-        os.mkdir(data_dir)
-
-    db = ArXivDatabase(db_name = db_name, data_dir = data_dir)
+    data_dir = Path(data_dir)
+    if not data_dir.is_dir():
+        data_dir.mkdir()
 
     # Get list of categories, sorted alphabetically
-    cat_path = os.path.join(data_dir, 'cats.tsv')
-    if os.path.isfile(cat_path):
+    cat_path = data_dir / 'cats.tsv'
+    if cat_path.is_file():
         cats_df = pd.read_csv(cat_path, sep = '\t')
     else:
-        cats_df = get_cats(os.path.join(data_dir, 'cats'))
+        cats_df = get_cats(cat_path)
     cats = sorted(cats_df['cat'])
 
     # Start from a given category
@@ -228,6 +267,13 @@ def scrape(db_name = 'arxiv_data', data_dir = 'data', batch_size = 1000,
         except ValueError:
             pass
 
+    # Remove existing database if we are overwriting
+    if overwrite:
+        (data_dir / db_name).unlink()
+
+    # Load database
+    db = ArXivDatabase(db_name = db_name, data_dir = data_dir)
+
     # Scraping loop
     with tqdm() as pbar:
         for cat in cats:
@@ -235,27 +281,35 @@ def scrape(db_name = 'arxiv_data', data_dir = 'data', batch_size = 1000,
             cat_idx, strikes = 0, 0
             while strikes <= patience:
 
-                # Fetch data and store into databse
-                batch = fetch(cat, start = cat_idx, max_results = batch_size)
-                for row in batch:
-                    db.insert_row(**row)
+                # Fetch data
+                batch = fetch(
+                    category = cat, 
+                    max_results = batch_size,
+                    start = cat_idx
+                )
+
+                # Store data in database
+                with db.engine.connect() as conn:
+                    for row in batch:
+                        db.insert_row(**row, conn = conn)
 
                 cat_idx += len(batch)
                 pbar.update(len(batch))
                 sleep(5)
 
-                # Strike management
+                # Add a strike if there was no results, or reset the
+                # strikes if there was a result
                 if len(batch):
                     strikes = 0
                 else:
                     strikes += 1
 
-def get_cats(save_to = None):
+def get_cats(save_to: str = None):
     ''' Fetch list of all ArXiv categories from arxitics.com
     
     INPUT
-        save_to: str or None
-            File name to save the dataframe to, without file extension
+        save_to: str
+            File name to save the dataframe to, with .tsv file extension
 
     OUTPUT
         A Pandas DataFrame object with the categories
@@ -289,7 +343,7 @@ def get_cats(save_to = None):
 
     df = pd.DataFrame(data)
     if save_to is not None:
-        df.to_csv(save_to + '.tsv', sep = '\t', index = False)
+        df.to_csv(save_to, sep = '\t', index = False)
 
     return df
 
