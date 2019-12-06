@@ -165,8 +165,8 @@ def fetch(category, max_results = 5, start = 0):
             papers.append({
             'id': entry.id.string,
             'authors': authors,
-            'updated': datetime.fromisoformat(entry.updated.string),
-            'published': datetime.fromisoformat(entry.published.string),
+            'updated': datetime.fromisoformat(entry.updated.string[:-1]),
+            'published': datetime.fromisoformat(entry.published.string[:-1]),
             'title': entry.title.string,
             'abstract': entry.summary.string,
             'categories': cats
