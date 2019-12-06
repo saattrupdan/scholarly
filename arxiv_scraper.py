@@ -1,16 +1,29 @@
+import datetime
+
 class ArXivDatabase:
-    def __init__(self, db_name = 'arxiv_data', data_dir = 'data'):
+    ''' A SQLite databse for storing abstracts of ArXiv papers. 
+    
+    INPUT
+        db_name: str = 'arxiv_data'
+            Name of the database
+        data_dir: str = 'data'
+            Folder which contains the database
+    '''
+
+    def __init__(self, db_name: str = 'arxiv_data', data_dir: str = 'data'):
         from sqlalchemy import create_engine
         import os
+        self.db_name = db_name
         path = os.path.join(data_dir, db_name)
         self.engine = create_engine(f'sqlite:///{path}')
-        if not os.path.isfile(path):
-            self.create_table()
+        self.create_table()
 
     def create_table(self):
-        from sqlalchemy import MetaData, Table, Column, String, DateTime
+        ''' Create main table of the database. '''
+        from sqlalchemy import MetaData, Table, Column
+        from sqlalchemy import String, DateTime
         metadata = MetaData()
-        papers = Table('papers', metadata,
+        Table(self.db_name, metadata,
             Column('id', String, primary_key = True),
             Column('authors', String),
             Column('updated', DateTime),
@@ -22,21 +35,75 @@ class ArXivDatabase:
         metadata.create_all(self.engine)
         return self
 
-    def run_query(self, query):
-        with self.engine.connect as conn:
-            return conn.execute(query)
-
-    def add_row(id, authors, updated, published, title, abstract, categories):
-        query = '''insert into arxiv_data 
-                   values (id, authors, updated, published, title, 
-                           abstract, categories);'''
-        self.run_query(query)
+    def run_query(self, query: str):
+        ''' Run any SQL query for the databse. '''
+        with self.engine.connect() as conn:
+            conn.execute(query)
         return self
 
+    def insert_row(self, id: str, authors: str, updated: datetime.datetime, 
+        published: datetime.datetime, title: str, abstract: str, 
+        categories: str):
+        ''' Insert a row into the database.
+
+        INPUT
+            id: str
+                The unique ArXiv id. If a paper already exists with that
+                id then the row will not be inserted
+            authors: str
+                Authors of the paper, separated by commas
+            updated: datetime.datetime
+                Date and time for when the paper was last updated
+            published: datetime.datetime
+                Date and time for when the paper was published onto the ArXiv
+            title: str
+                Title of the paper
+            abstract: str
+                Abstract of the paper
+            categories: str
+                The ArXiv categories that the paper is categorised as, 
+                separated by commas
+        '''
+        from sqlalchemy.exc import IntegrityError
+        query = f'''insert into {self.db_name}
+                    values ("{id}", "{authors}", "{updated}", 
+                            "{published}", "{title}", "{abstract}", 
+                            "{categories}");'''
+        try:
+            self.run_query(query)
+        except IntegrityError:
+            pass
+
+    def delete_row(self, id: str):
+        ''' Delete row with a given ArXiv ID.
+
+        INPUT
+            id: str
+                The ArXiv ID of the row to be deleted.
+        '''
+        query = f'delete from {self.db_name} where id = "{id}"'
+        self.run_query(query)
+
+    def update_row(self, id: str, **kwargs):
+        ''' Update a row in the database with a given ArXiv ID.
+
+        INPUT
+            id: str
+                The unique ArXiv id of the row to be updated.
+            **kwargs
+                Values to update
+        '''
+        changes = ', '.join(f'{col} = "{val}"' for col, val in kwargs.items())
+        query = f''' update {self.db_name}
+                     set {changes}
+                     where id = "{id}";'''
+        self.run_query(query)
+
     def print_all_data(self):
-        query = 'select * from arxiv_data;'
-        for row in self.run_query(query):
-            print(row)
+        ''' Print all the data in the database. '''
+        with self.engine.connect() as conn:
+            for row in conn.execute(f'select * from {self.db_name}'):
+                print(row)
         return self
 
 def fetch(category, max_results = 5, start = 0):
@@ -63,6 +130,7 @@ def fetch(category, max_results = 5, start = 0):
     '''
     import requests
     from bs4 import BeautifulSoup
+    from datetime import datetime
 
     params = {
         'search_query': 'cat:' + category,
@@ -97,8 +165,8 @@ def fetch(category, max_results = 5, start = 0):
             papers.append({
             'id': entry.id.string,
             'authors': authors,
-            'updated': entry.updated.string,
-            'published': entry.published.string,
+            'updated': datetime.fromisoformat(entry.updated.string),
+            'published': datetime.fromisoformat(entry.published.string),
             'title': entry.title.string,
             'abstract': entry.summary.string,
             'categories': cats
@@ -109,15 +177,14 @@ def fetch(category, max_results = 5, start = 0):
 
     return papers
 
-def scrape(fname = 'arxiv', data_dir = 'data', batch_size = 1000,
+def scrape(db_name = 'arxiv_data', data_dir = 'data', batch_size = 1000,
     patience = 10, max_papers_per_cat = None, overwrite = True,
     start_from = None):
     ''' Scrape papers from the ArXiv.
 
     INPUT
-        fname: str = 'arxiv'
-            Name of the JSON file where the data will be stored, without
-            file extension
+        db_name: str = 'arxiv_data'
+            Name of the SQLite databse where the data will be stored
         data_dir: str = 'data'
             Directory in which the data files are to be stored
         batch_size: int = 0
@@ -144,6 +211,8 @@ def scrape(fname = 'arxiv', data_dir = 'data', batch_size = 1000,
     if not os.path.isdir(data_dir):
         os.mkdir(data_dir)
 
+    db = ArXivDatabase(db_name = db_name, data_dir = data_dir)
+
     # Get list of categories, sorted alphabetically
     cat_path = os.path.join(data_dir, 'cats.tsv')
     if os.path.isfile(cat_path):
@@ -159,37 +228,27 @@ def scrape(fname = 'arxiv', data_dir = 'data', batch_size = 1000,
         except ValueError:
             pass
 
-    # Create empty JSON file
-    json_path = os.path.join(data_dir, fname + '.json')
-    if overwrite:
-        with open(json_path, 'w') as f:
-            json.dump([], f)
-
     # Scraping loop
     with tqdm() as pbar:
         for cat in cats:
             pbar.set_description(f'Scraping {cat}')
             cat_idx, strikes = 0, 0
             while strikes <= patience:
+
+                # Fetch data and store into databse
                 batch = fetch(cat, start = cat_idx, max_results = batch_size)
-                if len(batch):
-                    # Reset strikes
-                    strikes = 0
-
-                    # Load previous data from JSON file
-                    with open(json_path, 'r') as f:
-                        json_data = json.load(f)
-
-                    # Concatenate the new data and save to new JSON file
-                    json_data = list(chain(json_data, batch))
-                    with open(json_path, 'w') as f:
-                        json.dump(json_data, f)
-                else:
-                    strikes += 1
+                for row in batch:
+                    db.insert_row(**row)
 
                 cat_idx += len(batch)
                 pbar.update(len(batch))
                 sleep(5)
+
+                # Strike management
+                if len(batch):
+                    strikes = 0
+                else:
+                    strikes += 1
 
 def get_cats(save_to = None):
     ''' Fetch list of all ArXiv categories from arxitics.com
@@ -235,7 +294,4 @@ def get_cats(save_to = None):
     return df
 
 if __name__ == '__main__':
-    db = ArXivDatabase()
-    #pcloud_dir = '/home/dn16382/pCloudDrive/public_folder/scholarly_data'
-    #scrape(data_dir = 'data', batch_size = 10000, 
-    #start_from = 'cond-mat.str-el')
+    scrape()
