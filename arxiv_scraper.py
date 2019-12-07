@@ -167,8 +167,8 @@ def clean(doc: str):
     # or \(...\) to -EQN-
     dollareqn = '(?<!\$)\${1,2}(?!\$).*?(?<!\$)\${1,2}(?!\$)'
     bracketeqn = '\\[\[\(].*?\\[\]\)]'
-    eqn = f'( {dollareqn} | {bracketeqn} )'
-    doc = re.sub(eqn, '-EQN-', doc)
+    eqn = f'({dollareqn}|{bracketeqn})'
+    doc = re.sub(eqn, ' -EQN- ', doc)
 
     # Remove scare quotes, both as " and \\"
     doc = re.sub('(\\"|")', '', doc)
