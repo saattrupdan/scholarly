@@ -219,7 +219,7 @@ def fetch(category: str, max_results: int = 5, start: int = 0):
             The name of the ArXiv category. Leave blank to search among all
             categories
         max_results: int = 5
-            Maximal number of papers scraped, ArXiv limits this to 30,000
+            Maximal number of papers scraped, ArXiv limits this to 10,000
         start: int = 0
             The index of the paper from which the scraping begins
 
@@ -298,7 +298,7 @@ def fetch(category: str, max_results: int = 5, start: int = 0):
 
 def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data', 
     batch_size: int = 1000, patience: int = 20, overwrite: bool = False, 
-    max_papers_per_cat: int = None, start_from: int = None):
+    start_from: int = None):
     ''' Scrape papers from the ArXiv.
 
     INPUT
@@ -307,8 +307,8 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data',
         data_dir: str = 'data'
             Directory in which the data files are to be stored
         batch_size: int = 0
-            The amount of papers fetched at each GET request - has to be 
-            below 10,000
+            The amount of papers fetched at each GET request - ArXiv limits
+            this to 10,000
         patience: int = 20
             The amount of successive failed GET requests before moving on
             to the next category. The ArXiv API usually times out, resulting
@@ -316,8 +316,6 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data',
             large to rule these timeouts out
         overwrite: bool = False
             Whether the database file should be overwritten
-        max_papers_per_cat: int = None
-            The maximum number of papers to fetch for each category
         start_from: str = None
             A category to start from, which defaults to starting from scratch
     '''
@@ -368,11 +366,13 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data',
                     for row in batch:
                         db.insert_paper(**row, conn = conn)
 
+                # Update the category index, progress bar and wait for
+                # a couple of seconds to give the API a rest
                 cat_idx += len(batch)
                 pbar.update(len(batch))
                 sleep(5)
 
-                # Add a strike if there was no results, or reset the
+                # Add a strike if there were no results, or reset the
                 # strikes if there was a result
                 if len(batch):
                     strikes = 0
