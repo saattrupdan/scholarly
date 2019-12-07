@@ -173,6 +173,7 @@ def fetch(category: str, max_results: int = 5, start: int = 0):
     import requests
     from bs4 import BeautifulSoup
     from datetime import datetime
+    from time import sleep
 
     params = {
         'search_query': 'cat:' + category,
@@ -183,9 +184,15 @@ def fetch(category: str, max_results: int = 5, start: int = 0):
     }
 
     # Perform GET request
-    api_url = 'http://export.arxiv.org/api/query'
-    response = requests.get(api_url, params = params)
-    soup = BeautifulSoup(response._content, 'lxml')
+    while True:
+        try:
+            api_url = 'http://export.arxiv.org/api/query'
+            response = requests.get(api_url, params = params)
+            soup = BeautifulSoup(response._content, 'lxml')
+            break
+        except requests.exceptions.ConnectionError:
+            sleep(1)
+            continue
 
     papers = {
         'id': [],
@@ -218,7 +225,7 @@ def fetch(category: str, max_results: int = 5, start: int = 0):
     return papers
 
 def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data', 
-    batch_size: int = 1000, patience: int = 60, overwrite: bool = False, 
+    batch_size: int = 1000, patience: int = 20, overwrite: bool = False, 
     max_papers_per_cat: int = None, start_from: int = None):
     ''' Scrape papers from the ArXiv.
 
@@ -230,7 +237,7 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data',
         batch_size: int = 0
             The amount of papers fetched at each GET request - has to be 
             below 10,000
-        patience: int = 60
+        patience: int = 20
             The amount of successive failed GET requests before moving on
             to the next category. The ArXiv API usually times out, resulting
             in a failed GET request, so this number should be reasonably
@@ -275,8 +282,8 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data',
     db = ArXivDatabase(db_name = db_name, data_dir = data_dir)
 
     # Scraping loop
-    with tqdm() as pbar:
-        for cat in cats:
+    for cat in tqdm(cats, desc = 'Scraping ArXiv categories'):
+        with tqdm(leave = False) as pbar:
             pbar.set_description(f'Scraping {cat}')
             cat_idx, strikes = 0, 0
             while strikes <= patience:
@@ -348,4 +355,4 @@ def get_cats(save_to: str = None):
     return df
 
 if __name__ == '__main__':
-    scrape()
+    scrape(start_from = 'cs.CY')
