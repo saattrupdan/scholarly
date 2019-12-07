@@ -48,6 +48,17 @@ class ArXivDatabase:
                 primary_key = True)
         )
 
+        Table('authors', metadata,
+            Column('id', String, primary_key = True)
+        )
+
+        Table('papers_authors', metadata,
+            Column('paper_id', String, ForeignKey('papers.id'),
+                primary_key = True),
+            Column('author_id', String, ForeignKey('authors.id'),
+                primary_key = True)
+        )
+
         metadata.create_all(self.engine)
         return self
 
@@ -69,7 +80,7 @@ class ArXivDatabase:
         }
 
         master_cat_query = 'insert or ignore into master_cats values '
-        master_cat_query += ','.join('("{id}", "{name}")' 
+        master_cat_query += ','.join(f'("{id}", "{name}")' 
                           for id, name in master_cats.items())
 
         ids, names, mcats = [], [], []
@@ -84,7 +95,7 @@ class ArXivDatabase:
                     mcats.append(master_cat)
 
         cat_query = 'insert or ignore into cats values '
-        cat_query += ','.join('("{id}", "{name}", "{mcat}")' 
+        cat_query += ','.join(f'("{id}", "{name}", "{mcat}")' 
                           for id, name, mcat in zip(ids, names, mcats))
 
         with self.engine.connect() as conn:
@@ -116,9 +127,26 @@ class ArXivDatabase:
                      for paper in papers 
                      for cat in paper['categories'].split(','))
 
+        author_query = 'insert or ignore into authors values '
+        author_query += ','.join(f'("{author.strip()}")'
+                                 for paper in papers 
+                                 for author in paper['authors'].split(','))
+
+        
+        paper_author_query = 'insert or ignore into papers_authors values '
+        paper_author_query += ','.join(f'''
+                     (
+                         "{paper['paper_id']}", 
+                         "{author.strip()}"
+                     )'''
+                     for paper in papers 
+                     for author in paper['authors'].split(','))
+
         with self.engine.connect() as conn:
             conn.execute(paper_query)
             conn.execute(cat_query)
+            conn.execute(author_query)
+            conn.execute(paper_author_query)
 
         return self
 
@@ -135,8 +163,8 @@ def clean(doc: str):
     # Remove newline symbols
     doc = re.sub('\n', ' ', doc)
 
-    # Convert LaTeX equations of the form $...$, $$...$$, \[...\] or 
-    # \(...\) to -EQN-
+    # Convert LaTeX equations of the form $...$, $$...$$, \[...\]
+    # or \(...\) to -EQN-
     dollareqn = '(?<!\$)\${1,2}(?!\$).*?(?<!\$)\${1,2}(?!\$)'
     bracketeqn = '\\[\[\(].*?\\[\]\)]'
     eqn = f'( {dollareqn} | {bracketeqn} )'
@@ -203,22 +231,17 @@ def fetch(category: str, max_results: int = 5, start: int = 0):
             sleep(1)
             continue
 
-    papers = {
-        'id': [],
-        'updated': [],
-        'published': [],
-        'title': [],
-        'abstract': [],
-        'categories': []
-    }
-
     # Convert data formats and store it in a list
     papers = []
     for entry in soup.find_all('entry'):
         cats = ','.join(cat['term'] for cat in entry.find_all('category'))
+        authors = ','.join(clean(name.string) 
+            for author in entry.find_all('author')
+            for name in author.find_all('name'))
 
         papers.append({
         'paper_id': entry.id.string,
+        'authors': authors,
         'updated': datetime.fromisoformat(entry.updated.string[:-1]),
         'published': datetime.fromisoformat(entry.published.string[:-1]),
         'title': clean(entry.title.string),
@@ -312,4 +335,4 @@ def scrape(db_name: str = 'arxiv_data.db', data_dir: str = 'data',
 if __name__ == '__main__':
     from pathlib import Path
     pcloud = Path.home() / 'pCloudDrive' / 'public_folder' / 'scholarly_data'
-    scrape(data_dir = 'data')
+    scrape(data_dir = pcloud)
