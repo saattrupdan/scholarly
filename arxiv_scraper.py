@@ -11,32 +11,117 @@ class ArXivDatabase:
     def __init__(self, db_name: str = 'arxiv_data', data_dir: str = 'data'):
         from sqlalchemy import create_engine
         from pathlib import Path
-        self.db_name = db_name
         self.engine = create_engine(f'sqlite:///{Path(data_dir) / db_name}')
-        self.create_table()
+        self.create_tables()
+        self.populate_cats()
 
-    def create_table(self):
+    def create_tables(self):
         ''' Create main table of the database. '''
-        from sqlalchemy import MetaData, Table, Column, String, DateTime
+        from sqlalchemy import MetaData, Table, Column
+        from sqlalchemy import String, DateTime, ForeignKey
+
         metadata = MetaData()
-        Table(self.db_name, metadata,
+
+        Table('papers', metadata,
             Column('id', String, primary_key = True),
-            Column('authors', String),
             Column('updated', DateTime),
             Column('published', DateTime),
             Column('title', String),
-            Column('abstract', String),
-            Column('categories', String)
+            Column('abstract', String)
         )
+
+        Table('master_cats', metadata,
+            Column('id', String, primary_key = True),
+            Column('name', String)
+        )
+
+        Table('cats', metadata,
+            Column('id', String, primary_key = True),
+            Column('name', String)
+        )
+
+        Table('cats_master_cats', metadata,
+            Column('category_id', String, ForeignKey('cats.id'), 
+                primary_key = True),
+            Column('master_category_id', String,
+                ForeignKey('master_cats.id'), primary_key = True)
+        )
+
+        Table('papers_cats', metadata,
+            Column('paper_id', String, ForeignKey('papers.id'),
+                primary_key = True),
+            Column('category_id', String, ForeignKey('cats.id'),
+                primary_key = True)
+        )
+
+        Table('authors', metadata,
+            Column('id', String, primary_key = True)
+        )
+
+        Table('papers_authors', metadata,
+            Column('paper_id', String, ForeignKey('papers.id'),
+                primary_key = True),
+            Column('author_id', String, ForeignKey('authors.id'),
+                primary_key = True)
+        )
+
         metadata.create_all(self.engine)
         return self
 
-    def insert_row(self, id: str, authors: str, updated, published, 
+    def populate_cats(self):
+        ''' Fetch list of all ArXiv categories from arxitics.com and
+            use it to populate the cats, master_cats and cats_master_cats
+            tables in the database. '''
+        import requests
+        from bs4 import BeautifulSoup
+        from sqlalchemy.exc import IntegrityError
+
+        master_cats = {
+            'physics': 'Physics',
+            'math': 'Mathematics',
+            'cs': 'Computer Science',
+            'q-bio': 'Quantitative Biology',
+            'q-fin': 'Quantitative Finance',
+            'stats': 'Statistics'
+        }
+
+        with self.engine.connect() as conn:
+            for id, name in master_cats.items():
+                try:
+                    conn.execute(f'''
+                        insert into master_cats
+                        values ("{id}", "{name}");
+                    ''')
+                except IntegrityError:
+                    pass
+
+            base_url = 'http://arxitics.com/help/categories'
+            for master_cat in master_cats:
+                response = requests.get(base_url, {'group': master_cat})
+                soup = BeautifulSoup(response._content, 'lxml')
+                for li in soup.find_all('li'):
+                    if li.strong is not None:
+                        cat_id = li.strong.text
+                        cat_name = li.span.text[2:]
+                        try:
+                            conn.execute(f'''
+                                insert into cats
+                                values ("{cat_id}", "{cat_name}");
+                            ''')
+                            conn.execute(f'''
+                                insert into cats_master_cats
+                                values ("{cat_id}", "{master_cat}");
+                            ''')
+                        except IntegrityError:
+                            pass
+        return self
+
+    def insert_paper(self, paper_id: str, authors: str, updated, published, 
         title: str, abstract: str, categories: str, conn = None):
         ''' Insert a row into the database.
 
         INPUT
-            id: str
+            paper_id: str
                 The unique ArXiv id. If a paper already exists with that id
                 then the row will not be inserted
             authors: str
@@ -57,66 +142,52 @@ class ArXivDatabase:
                 opening a new connection
         '''
         from sqlalchemy.exc import IntegrityError
-        query = (f'insert into {self.db_name} '
-                 f'values ("{id}", "{authors}", "{updated}", '
-                 f'"{published}", "{title}", "{abstract}", '
-                 f'"{categories}")')
-        try:
-            if conn is None:
-                with self.engine.connect() as conn:
+
+        queries = []
+        queries.append(f'''
+            insert into papers
+            values ("{paper_id}", "{updated}", "{published}",
+            "{title}", "{abstract}");
+        ''')
+
+        for author in authors.split(','):
+            queries.append(f'''
+                insert into authors 
+                values ("{author.strip()}");
+            ''')
+            queries.append(f'''
+                insert into papers_authors
+                values ("{paper_id}", "{author}");
+            ''')
+
+        for category in categories.split(','):
+            queries.append(f'''
+                insert into papers_cats
+                values ("{paper_id}", "{category.strip()}");
+            ''')
+
+        query = ' '.join(queries)
+
+        if conn is None:
+            with self.engine.connect() as conn:
+                for query in queries:
+                    try:
+                        conn.execute(query)
+                    except IntegrityError:
+                        pass
+        else:
+            for query in queries:
+                try:
                     conn.execute(query)
-            else:
-                conn.execute(query)
-        except IntegrityError:
-            pass
+                except IntegrityError:
+                    pass
         return self
 
-    def delete_row(self, id: str, conn = None):
-        ''' Delete row with a given ArXiv ID.
-
-        INPUT
-            id: str
-                The ArXiv ID of the row to be deleted.
-            conn: sqlalchemy.Connection = None
-                The connection executing the query, which defaults to 
-                opening a new connection
-        '''
-        query = f'delete from {self.db_name} where id = "{id}"'
-        if conn is None:
-            with self.engine.connect() as conn:
-                conn.execute(query)
-        else:
-            conn.execute(query)
-        return self
-
-    def update_row(self, id: str, conn = None, **kwargs):
-        ''' Update a row in the database with a given ArXiv ID.
-
-        INPUT
-            id: str
-                The unique ArXiv id of the row to be updated.
-            conn = None
-                A Connection object, which will execute the query, which
-                defaults to opening a new connection
-            **kwargs
-                Values to update
-        '''
-        changes = ', '.join(f'{col} = "{val}"' for col, val in kwargs.items())
-        query = (f'update {self.db_name}'
-                 f'set {changes}'
-                 f'where id = "{id}";')
-        if conn is None:
-            with self.engine.connect() as conn:
-                conn.execute(query)
-        else:
-            conn.execute(query)
-        return self
-
-    def to_dataframe(self):
-        ''' Convert database to a Pandas DataFrame object. '''
+    def table2dataframe(self, table_name):
+        ''' Convert table to a Pandas DataFrame object. '''
         import pandas as pd
         with self.engine.connect() as conn:
-            return pd.read_sql_table(self.db_name, conn)
+            return pd.read_sql_table(table_name, conn)
 
 def clean(doc: str):
     ''' Clean a document. '''
@@ -125,13 +196,14 @@ def clean(doc: str):
     # Remove newline symbols
     doc = re.sub('\n', ' ', doc)
 
-    # Convert equations like $...$, $$...$$, $\[...\]$ or $\(...\)$ to -EQN-
+    # Convert LaTeX equations of the form $...$, $$...$$, \[...\] or 
+    # \(...\) to -EQN-
     dollareqn = '(?<!\$)\${1,2}(?!\$).*?(?<!\$)\${1,2}(?!\$)'
     bracketeqn = '\\[\[\(].*?\\[\]\)]'
     eqn = f'( {dollareqn} | {bracketeqn} )'
     doc = re.sub(eqn, '-EQN-', doc)
 
-    # Remove scare quotes
+    # Remove scare quotes, both as " and \\"
     doc = re.sub('(\\"|")', '', doc)
 
     # Merge multiple spaces
@@ -213,7 +285,7 @@ def fetch(category: str, max_results: int = 5, start: int = 0):
             for name in author.find_all('name'))
 
         papers.append({
-        'id': entry.id.string,
+        'paper_id': entry.id.string,
         'authors': authors,
         'updated': datetime.fromisoformat(entry.updated.string[:-1]),
         'published': datetime.fromisoformat(entry.published.string[:-1]),
@@ -249,7 +321,6 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data',
         start_from: str = None
             A category to start from, which defaults to starting from scratch
     '''
-    import pandas as pd
     from time import sleep
     from tqdm import tqdm
     from pathlib import Path
@@ -259,13 +330,17 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data',
     if not data_dir.is_dir():
         data_dir.mkdir()
 
+    # Remove existing database if we are overwriting
+    if overwrite:
+        (data_dir / db_name).unlink()
+
+    # Load database or create new one if it does not exist
+    db = ArXivDatabase(db_name = db_name, data_dir = data_dir)
+
     # Get list of categories, sorted alphabetically
-    cat_path = data_dir / 'cats.tsv'
-    if cat_path.is_file():
-        cats_df = pd.read_csv(cat_path, sep = '\t')
-    else:
-        cats_df = get_cats(cat_path)
-    cats = sorted(cats_df['cat'])
+    with db.engine.connect() as conn:
+        result = conn.execute('select cats.id from cats')
+        cats = [cat[0] for cat in result]
 
     # Start from a given category
     if start_from is not None:
@@ -273,13 +348,6 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data',
             cats = cats[cats.index(start_from):]
         except ValueError:
             pass
-
-    # Remove existing database if we are overwriting
-    if overwrite:
-        (data_dir / db_name).unlink()
-
-    # Load database
-    db = ArXivDatabase(db_name = db_name, data_dir = data_dir)
 
     # Scraping loop
     for cat in tqdm(cats, desc = 'Scraping ArXiv categories'):
@@ -298,7 +366,7 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data',
                 # Store data in database
                 with db.engine.connect() as conn:
                     for row in batch:
-                        db.insert_row(**row, conn = conn)
+                        db.insert_paper(**row, conn = conn)
 
                 cat_idx += len(batch)
                 pbar.update(len(batch))
@@ -311,48 +379,5 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data',
                 else:
                     strikes += 1
 
-def get_cats(save_to: str = None):
-    ''' Fetch list of all ArXiv categories from arxitics.com
-    
-    INPUT
-        save_to: str
-            File name to save the dataframe to, with .tsv file extension
-
-    OUTPUT
-        A Pandas DataFrame object with the categories
-    '''
-    import requests
-    from bs4 import BeautifulSoup
-    import pandas as pd
-
-    master_cats = [
-        'physics',
-        'math',
-        'cs',
-        'q-bio',
-        'q-fin',
-        'stats'
-    ]
-
-    data = {'cat': [], 'master_cat': [], 'desc': []}
-    base_url = 'http://arxitics.com/help/categories'
-    for master_cat in master_cats:
-        response = requests.get(base_url, {'group': master_cat})
-        soup = BeautifulSoup(response._content, 'lxml')
-        for li in soup.find_all('li'):
-            if li.strong is not None:
-                data['cat'].append(li.strong.text)
-                data['master_cat'].append(master_cat)
-                if li.span is not None:
-                    data['desc'].append(li.span.text[2:])
-                else:
-                    data['desc'].append('')
-
-    df = pd.DataFrame(data)
-    if save_to is not None:
-        df.to_csv(save_to, sep = '\t', index = False)
-
-    return df
-
 if __name__ == '__main__':
-    scrape(start_from = 'cs.CY')
+    scrape()
