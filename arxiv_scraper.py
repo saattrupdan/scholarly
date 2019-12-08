@@ -30,7 +30,7 @@ def clean(doc: str):
     return doc.strip()
 
 def fetch(category: str, all_cats: list, max_results: int = 5, start: int = 0):
-    ''' Fetch papers from the arXiv.
+    ''' Fetch papers from the ArXiv.
 
     INPUT
         category: str
