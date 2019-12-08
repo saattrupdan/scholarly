@@ -85,7 +85,7 @@ class ArXivDatabase:
 
         ids, names, mcats = [], [], []
         base_url = 'http://arxitics.com/help/categories'
-        for master_cat in tqdm(master_cats, desc = 'Populating cats'):
+        for master_cat in tqdm(master_cats, desc = 'Setting up categories'):
             response = requests.get(base_url, {'group': master_cat})
             soup = BeautifulSoup(response._content, 'lxml')
             for li in soup.find_all('li'):
@@ -118,8 +118,8 @@ class ArXivDatabase:
                         )'''
                        for paper in papers)
 
-        cat_query = 'insert or ignore into papers_cats values '
-        cat_query += ','.join(f'''
+        paper_cat_query = 'insert or ignore into papers_cats values '
+        paper_cat_query += ','.join(f'''
                      (
                          "{paper['paper_id']}", 
                          "{cat.strip()}"
@@ -132,7 +132,6 @@ class ArXivDatabase:
                                  for paper in papers 
                                  for author in paper['authors'].split(','))
 
-        
         paper_author_query = 'insert or ignore into papers_authors values '
         paper_author_query += ','.join(f'''
                      (
@@ -144,7 +143,7 @@ class ArXivDatabase:
 
         with self.engine.connect() as conn:
             conn.execute(paper_query)
-            conn.execute(cat_query)
+            conn.execute(paper_cat_query)
             conn.execute(author_query)
             conn.execute(paper_author_query)
 
@@ -178,13 +177,15 @@ def clean(doc: str):
 
     return doc.strip()
 
-def fetch(category: str, max_results: int = 5, start: int = 0):
+def fetch(category: str, all_cats: list, max_results: int = 5, start: int = 0):
     ''' Fetch papers from the arXiv.
 
     INPUT
         category: str
             The name of the ArXiv category. Leave blank to search among all
             categories
+        all_cats: list
+            A list of all the categories
         max_results: int = 5
             Maximal number of papers scraped, ArXiv limits this to 10,000
         start: int = 0
@@ -234,7 +235,14 @@ def fetch(category: str, max_results: int = 5, start: int = 0):
     # Convert data formats and store it in a list
     papers = []
     for entry in soup.find_all('entry'):
-        cats = ','.join(cat['term'] for cat in entry.find_all('category'))
+
+        cats = ','.join(cat['term'] 
+            for cat in entry.find_all('category')
+            if cat['term'] in all_cats)
+
+        if cats == '':
+            continue
+
         authors = ','.join(clean(name.string) 
             for author in entry.find_all('author')
             for name in author.find_all('name'))
@@ -313,7 +321,8 @@ def scrape(db_name: str = 'arxiv_data.db', data_dir: str = 'data',
                 batch = fetch(
                     category = cat, 
                     max_results = batch_size,
-                    start = cat_idx
+                    start = cat_idx,
+                    all_cats = cats
                 )
 
                 # Wait for a couple of seconds to give the API a rest
