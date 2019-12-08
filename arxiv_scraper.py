@@ -1,8 +1,8 @@
 class ArXivDatabase:
-    ''' A SQLite databse for storing abstracts of ArXiv papers. 
+    ''' A SQLite databse for storing ArXiv papers. 
     
     INPUT
-        name: str = 'arxiv_data'
+        name: str = 'arxiv_data.db'
             Name of the database
         data_dir: str = 'data'
             Folder which contains the database
@@ -16,7 +16,7 @@ class ArXivDatabase:
         self.populate_cats()
 
     def create_tables(self):
-        ''' Create main table of the database. '''
+        ''' Create the tables of the database. '''
         from sqlalchemy import MetaData, Table, Column
         from sqlalchemy import String, DateTime, ForeignKey
 
@@ -105,7 +105,27 @@ class ArXivDatabase:
         return self
 
     def insert_papers(self, papers: list):
-        ''' Insert papers into the database.'''
+        ''' Insert papers into the database.
+        
+        INPUT
+            papers: list
+                A list of dictionaries, each containing the following keys:
+                    id: str
+                        The unique ArXiv identifier
+                    authors: str
+                        The authors of the paper, separated by commas
+                    updated: datetime.datetime
+                        Last updated date and time
+                    published: datetime.datetime
+                        Date and time when the paper was published on ArXiv
+                    title: str
+                        Title of the paper
+                    abstract: str
+                        Abstract of the paper
+                    categories: str
+                        The ArXiv categories that the paper falls under, 
+                        separated by commas
+        '''
 
         paper_query = 'insert or ignore into papers values '
         paper_query += ','.join(f'''
@@ -149,14 +169,52 @@ class ArXivDatabase:
 
         return self
 
-    def table2dataframe(self, table_name):
-        ''' Convert table to a Pandas DataFrame object. '''
+    def get_training_df(self):
+        ''' Get a dataframe with ids, titles, abstracts and categories
+            of all the papers in the database.
+
+        OUTPUT
+            A Pandas DataFrame object with columns id, title, abstract and
+            a column for every ArXiv category
+        '''
         import pandas as pd
-        with self.engine.connect() as conn:
-            return pd.read_sql_table(table_name, conn)
+        from tqdm.auto import tqdm
+
+        with db.engine.connect() as conn:
+
+            # Convert the papers table in the database to a dataframe
+            df = pd.read_sql_table(
+                table_name = 'papers', 
+                con = conn, 
+                columns = ['id', 'title', 'abstract'],
+            )
+
+            # Get a list of all the categories
+            cat_result = conn.execute('select cats.id from cats')
+            cats = [cat[0] for cat in cat_result]
+
+            # Add every category as a column to the dataframe, with 0/1
+            # values associated to each paper, signifying whether the paper
+            # falls under that category
+            for cat in tqdm(cats, desc = 'Creating dataframe'):
+                query = f'''select paper_id, category_id from papers_cats
+                            where category_id = "{cat}"'''
+                paper_ids = [paper[0] for paper in conn.execute(query)]
+                df[cat] = df['id'].isin(paper_ids).astype(int)
+
+        return df
 
 def clean(doc: str):
-    ''' Clean a document. '''
+    ''' Clean a document. This removes newline symbols, scare quotes,
+        superfluous whitespace and replaces equations with -EQN-. 
+        
+    INPUT
+        doc: str
+            A document
+
+    OUTPUT
+        The cleaned version of the document
+    '''
     import re
 
     # Remove newline symbols
@@ -193,9 +251,11 @@ def fetch(category: str, all_cats: list, max_results: int = 5, start: int = 0):
 
     OUTPUT
         A list of dictionaries representing each paper entry, with each
-        dictionary having the following attributes:
+        dictionary having the following keys:
             id: str
                 The unique ArXiv identifier
+            authors: str
+                The authors of the paper, separated by commas
             updated: datetime.datetime
                 Last updated date and time
             published: datetime.datetime
@@ -344,4 +404,8 @@ def scrape(db_name: str = 'arxiv_data.db', data_dir: str = 'data',
 if __name__ == '__main__':
     from pathlib import Path
     pcloud = Path.home() / 'pCloudDrive' / 'public_folder' / 'scholarly_data'
-    scrape(data_dir = pcloud, start_from = 'astro-ph.SR')
+
+    db = ArXivDatabase(data_dir = pcloud)
+    print(db.get_training_df())
+
+    #scrape(data_dir = pcloud, start_from = 'astro-ph.SR')
