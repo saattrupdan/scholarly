@@ -261,7 +261,7 @@ def fetch(category: str, all_cats: list, max_results: int = 5, start: int = 0):
 
 def scrape(db_name: str = 'arxiv_data.db', data_dir: str = 'data', 
     batch_size: int = 1000, patience: int = 20, overwrite: bool = False, 
-    start_from: int = None):
+    start_from: str = None):
     ''' Scrape papers from the ArXiv.
 
     INPUT
@@ -344,4 +344,4 @@ def scrape(db_name: str = 'arxiv_data.db', data_dir: str = 'data',
 if __name__ == '__main__':
     from pathlib import Path
     pcloud = Path.home() / 'pCloudDrive' / 'public_folder' / 'scholarly_data'
-    scrape(data_dir = pcloud)
+    scrape(data_dir = pcloud, start_from = 'astro-ph.SR')
