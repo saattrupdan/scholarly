@@ -404,8 +404,4 @@ def scrape(db_name: str = 'arxiv_data.db', data_dir: str = 'data',
 if __name__ == '__main__':
     from pathlib import Path
     pcloud = Path.home() / 'pCloudDrive' / 'public_folder' / 'scholarly_data'
-
-    db = ArXivDatabase(data_dir = pcloud)
-    print(db.get_training_df())
-
-    #scrape(data_dir = pcloud, start_from = 'astro-ph.SR')
+    scrape(data_dir = pcloud, start_from = 'astro-ph.SR')
