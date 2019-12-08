@@ -113,13 +113,13 @@ def fetch(category: str, all_cats: list, max_results: int = 5, start: int = 0):
 
     return papers
 
-def scrape(db_name: str = 'arxiv_data.db', data_dir: str = 'data', 
+def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data', 
     batch_size: int = 1000, patience: int = 20, overwrite: bool = False, 
-    start_from: str = None):
+    start_from: str = None, save_copy = False):
     ''' Scrape papers from the ArXiv.
 
     INPUT
-        db_name: str = 'arxiv_data.db'
+        db_name: str = 'arxiv_data'
             Name of the SQLite databse where the data will be stored
         data_dir: str = 'data'
             Directory in which the data files are to be stored
@@ -135,10 +135,16 @@ def scrape(db_name: str = 'arxiv_data.db', data_dir: str = 'data',
             Whether the database file should be overwritten
         start_from: str = None
             A category to start from, which defaults to starting from scratch
+        save_copy: bool = False
+            Save a copy of the database in the same directory. This is
+            useful when you want to enable syncronisation, as the main
+            database will be kept open throughout the scraping and thus
+            won't be syncronised
     '''
     from time import sleep
     from tqdm.auto import tqdm
     from pathlib import Path
+    from shutil import copy
     from db import ArXivDatabase
 
     # Create data directory
@@ -146,9 +152,13 @@ def scrape(db_name: str = 'arxiv_data.db', data_dir: str = 'data',
     if not data_dir.is_dir():
         data_dir.mkdir()
 
+    # Create database paths
+    db_path = data_dir / (db_name + '.db')
+    db_copy_path = data_dir / (db_name + '_copy.db')
+
     # Remove existing database if we are overwriting
     if overwrite:
-        (data_dir / db_name).unlink()
+        db_path.unlink()
 
     # Load database or create new one if it does not exist
     db = ArXivDatabase(name = db_name, data_dir = data_dir)
@@ -167,6 +177,11 @@ def scrape(db_name: str = 'arxiv_data.db', data_dir: str = 'data',
 
     # Scraping loop
     for cat in tqdm(cats, desc = 'Scraping ArXiv categories'):
+
+        # Save copy of the database, to enable syncronisation
+        if save_copy:
+            copy(db_path, db_copy_path)
+
         with tqdm(leave = False) as pbar:
             pbar.set_description(f'Scraping {cat}')
             cat_idx, strikes = 0, 0
@@ -193,14 +208,19 @@ def scrape(db_name: str = 'arxiv_data.db', data_dir: str = 'data',
 
                 # Insert data into database
                 db.insert_papers(batch)
+
+                # Update counters
                 pbar.update(len(batch))
                 cat_idx += len(batch)
+    
+    # Delete database copy
+    db_copy_path.unlink()
 
 if __name__ == '__main__':
     from pathlib import Path
     pcloud = Path.home() / 'pCloudDrive' / 'public_folder' / 'scholarly_data'
     while True:
         try:
-            scrape(data_dir = pcloud, start_from = 'cond-mat.mes-hall')
+            scrape(data_dir = pcloud, start_from = 'cs.CE', save_copy = True)
         except:
             continue

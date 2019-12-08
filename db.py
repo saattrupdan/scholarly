@@ -11,7 +11,8 @@ class ArXivDatabase:
     def __init__(self, name: str = 'arxiv_data.db', data_dir: str = 'data'):
         from sqlalchemy import create_engine
         from pathlib import Path
-        self.engine = create_engine(f'sqlite:///{Path(data_dir) / name}')
+        db_path = Path(data_dir) / (name + ".db")
+        self.engine = create_engine(f'sqlite:///{db_path}')
         self.create_tables()
         self.populate_cats()
 
