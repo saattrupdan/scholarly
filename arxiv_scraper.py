@@ -200,4 +200,7 @@ if __name__ == '__main__':
     from pathlib import Path
     pcloud = Path.home() / 'pCloudDrive' / 'public_folder' / 'scholarly_data'
     while True:
-        scrape(data_dir = pcloud, start_from = 'cond-mat.mes-hall')
+        try:
+            scrape(data_dir = pcloud, start_from = 'cond-mat.mes-hall')
+        except:
+            continue
