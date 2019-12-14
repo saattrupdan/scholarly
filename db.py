@@ -11,7 +11,7 @@ class ArXivDatabase:
     def __init__(self, name: str = 'arxiv_data.db', data_dir: str = 'data'):
         from sqlalchemy import create_engine
         from pathlib import Path
-        db_path = Path(data_dir) / (name + ".db")
+        db_path = Path(data_dir) / name
         self.engine = create_engine(f'sqlite:///{db_path}')
         self.create_tables()
         self.populate_cats()
@@ -182,13 +182,18 @@ class ArXivDatabase:
 
         return self
 
-    def get_training_df(self):
+    def get_training_df(self, only_master_cats: bool = False):
         ''' Get a dataframe with ids, titles, abstracts and categories
             of all the papers in the database.
 
+        INPUT
+            only_master_cats: bool = False
+                Whether to have columns for every master category, or to
+                have columns for every category
+
         OUTPUT
             A Pandas DataFrame object with columns id, title, abstract and
-            a column for every ArXiv category
+            a column for every ArXiv category or master category
         '''
         import pandas as pd
         from tqdm.auto import tqdm
@@ -203,8 +208,12 @@ class ArXivDatabase:
             )
 
             # Get a list of all the categories
-            cat_result = conn.execute('select cats.id from cats')
+            cat_result = conn.execute('select id from cats')
             cats = [cat[0] for cat in cat_result]
+
+            # Get a dictionary that maps each category to its master category
+            mcat_result = conn.execute('select id, master_cat from cats')
+            mcat_dict = {pair[0]: pair[1] for pair in mcat_result}
 
             # Add every category as a column to the dataframe, with 0/1
             # values associated to each paper, signifying whether the paper
@@ -213,12 +222,31 @@ class ArXivDatabase:
                 query = f'''select paper_id, category_id from papers_cats
                             where category_id = "{cat}"'''
                 paper_ids = [paper[0] for paper in conn.execute(query)]
-                df[cat] = df['id'].isin(paper_ids).astype(int)
+
+                bool_col = df['id'].isin(paper_ids).astype(int)
+                if only_master_cats:
+                    mcat = mcat_dict[cat]
+                    if mcat in df.columns:
+                        df[mcat] = (df[mcat] | bool_col).astype(int)
+                    else:
+                        df[mcat] = bool_col
+                else:
+                    df[cat] = bool_col
 
         return df
 
 if __name__ == '__main__':
     from pathlib import Path
-    pcloud = Path.home() / 'pCloudDrive' / 'public_folder' / 'scholarly_data'
-    db = ArXivDatabase(data_dir = pcloud)
-    print(db.get_training_df())
+
+    # Open database
+    db = ArXivDatabase(data_dir = 'data')
+
+    # Pull out a abstracts and categories into a tsv file
+    df = db.get_training_df(only_master_cats = True)
+    df.to_csv(Path('data') / 'arxiv_data_mcats.tsv', sep = '\t', index = False)
+
+    # Output the number of authors in database
+    with db.engine.connect() as conn:
+        query = 'select * from authors'
+        authors = [author[0] for author in conn.execute(query)]
+        print(len(authors))
