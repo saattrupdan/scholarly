@@ -183,7 +183,7 @@ class ArXivDatabase:
         return self
 
     def get_training_df(self, only_master_cats: bool = False):
-        ''' Get a dataframe with ids, titles, abstracts and categories
+        ''' Get a dataframe with titles, abstracts and categories
             of all the papers in the database.
 
         INPUT
@@ -192,7 +192,8 @@ class ArXivDatabase:
                 have columns for every category
 
         OUTPUT
-            A Pandas DataFrame object with columns id, title, abstract and
+            A Pandas DataFrame object with columns title, abstract (or a
+            single text column if merge_title_abstract is True) and
             a column for every ArXiv category or master category
         '''
         import pandas as pd
@@ -233,7 +234,7 @@ class ArXivDatabase:
                 else:
                     df[cat] = bool_col
 
-        return df
+        return df.drop(columns = ['id'])
 
 if __name__ == '__main__':
     from pathlib import Path
@@ -245,8 +246,8 @@ if __name__ == '__main__':
     df = db.get_training_df(only_master_cats = True)
     df.to_csv(Path('data') / 'arxiv_data_mcats.tsv', sep = '\t', index = False)
 
-    # Output the number of authors in database
-    with db.engine.connect() as conn:
-        query = 'select * from authors'
-        authors = [author[0] for author in conn.execute(query)]
-        print(len(authors))
+    # Example query: Output the number of authors in database
+    #with db.engine.connect() as conn:
+    #    query = 'select * from authors'
+    #    authors = [author[0] for author in conn.execute(query)]
+    #    print(len(authors))
