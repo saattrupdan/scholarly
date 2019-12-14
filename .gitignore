@@ -3,3 +3,4 @@ venv/*
 data/*
 *.swp
 __pycache__/*
+.vector_cache/*
