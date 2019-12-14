@@ -1,3 +1,21 @@
+class BatchWrapper:
+    ''' Wrap a torchtext data iterator. '''
+    def __init__(self, data_iter, cats: list):
+        self.data_iter = data_iter
+        self.batch_size = data_iter.batch_size
+        self.cats = cats
+
+    def __iter__(self):
+        import torch
+        for batch in self.data_iter:
+            x = batch.text
+            y = torch.cat([getattr(batch, cat).unsqueeze(1) 
+                for cat in self.cats], dim = 1)
+            yield (x, y.float())
+
+    def __len__(self):
+        return len(self.data_iter)
+
 def batch_iter(iterable: iter, batch_size: int):
     ''' Split an iterable into batches. 
     
@@ -34,7 +52,7 @@ def preprocess_data(cats_fname: str = 'arxiv_data_cats',
         <data_dir> / <tsv_fname>_pp.tsv.
 
     Note that this function uses a constant amount of memory, which is
-    achieved by replacing the raw texts by the preprocessed texts in
+    achieved by replacing the raw texts with the preprocessed texts in
     batches.
     
     INPUT
@@ -79,10 +97,13 @@ def preprocess_data(cats_fname: str = 'arxiv_data_cats',
             for doc in nlp.pipe(batch)
         )
         pbar.update(batch_size)
+    pbar.close()
 
     # Add the preprocessed texts to the dataframe as the first column and
     # save to disk
-    for (IN, OUT) in [(cats_in, cats_out), (mcats_in, mcats_out)]:
+    pbar = tqdm([(cats_in, cats_out), (mcats_in, mcats_out)],
+        desc = 'Storing the preprocessed texts')
+    for (IN, OUT) in pbar:
         df = pd.read_csv(IN, sep = '\t').dropna()
         df.drop(columns = ['title', 'abstract'], inplace = True)
         cats = df.columns.tolist()
@@ -127,9 +148,12 @@ def load_data(tsv_fname: str, data_dir: str = 'data', batch_size: int = 32,
     # Build the tsv path
     path = Path(data_dir) / (tsv_fname + '.tsv')
 
-    # Set up the fields in the tsv file
+    # Define the two types of fields in the tsv file
     TXT = data.Field()
     CAT = data.Field(sequential = False, use_vocab = False, is_target = True)
+
+    # Set up the columns in the tsv file with their associated fields
+    col_names = pd.read_csv(path, sep = '\t', nrows = 1).columns.tolist()
     fields = [('text', TXT)] + [(col_name, CAT) for col_name in col_names[1:]]
 
     # Load in the dataset and tokenise the texts
@@ -137,7 +161,7 @@ def load_data(tsv_fname: str, data_dir: str = 'data', batch_size: int = 32,
         path = path,
         format = 'tsv',
         fields = fields,
-        skipheader = True
+        skip_header = True
     )
 
     # Split into a training- and validation set
@@ -148,7 +172,7 @@ def load_data(tsv_fname: str, data_dir: str = 'data', batch_size: int = 32,
     )
 
     # Build the vocabulary of the training set
-    TXT.build_vocab(train)#, vectors = vocab.GloVe('6B', dim = emb_dim)
+    TXT.build_vocab(train, vectors = vocab.GloVe('6B', dim = emb_dim))
 
     # Numericalise the texts, batch them into batches of similar text
     # lengths and pad the texts in each batch
@@ -158,9 +182,18 @@ def load_data(tsv_fname: str, data_dir: str = 'data', batch_size: int = 32,
         sort_key = lambda sample: len(sample.text)
     )
 
-    return train_iter, val_iter, TXT
+    train_dl = BatchWrapper(train_iter, cats = col_names[1:])
+    val_dl = BatchWrapper(val_iter, cats = col_names[1:])
+
+    del dataset, train, val, train_iter, val_iter
+
+    params = {
+        'vocab_size': len(TXT.vocab),
+        'emb_dim': emb_dim,
+        'emb_matrix': TXT.vocab.vectors
+    }
+    return train_dl, val_dl, params
 
 
 if __name__ == '__main__':
     preprocess_data()
-    #train_iter, val_iter, TXT = load_data(file_name)
