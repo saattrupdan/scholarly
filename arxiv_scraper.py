@@ -156,8 +156,7 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data',
     # Create log path if it exists
     if log_path is not None:
         log_path = Path(log_path)
-        with open(log_path, 'a') as f:
-            f.write(f'{db_name} database log'.upper())
+        log_path.write_text(f'{db_name} database log'.upper())
 
     # Remove existing database and log if we are overwriting
     if overwrite:
@@ -183,8 +182,9 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data',
     for cat in tqdm(cats, desc = 'Scraping ArXiv categories'):
 
         if log_path is not None:
-            with open(log_path, 'a') as f:
-                f.write(f'\n{datetime.today()}\tStarted scraping {cat}')
+            log = log_path.read_text()
+            log += f'\n{datetime.today()}\tStarted scraping {cat}'
+            log_path.write_text(log)
 
         with tqdm(leave = False) as pbar:
             pbar.set_description(f'Scraping {cat}')
@@ -218,23 +218,21 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data',
                 cat_idx += len(batch)
 
                 if log_path is not None:
-                    with open(log_path, 'a') as f:
-                        f.write(f'\n{datetime.today()}\t' + \
-                            f'Scraped {cat_idx} papers of category {cat}')
+                    log = log_path.read_text()
+                    log += f'\n{datetime.today()}\t'\
+                           f'Scraped {cat_idx} papers of category {cat}' 
+                    log_path.write_text(log)
 
         if log_path is not None:
-            with open(log_path, 'a') as f:
-                f.write(f'\n{datetime.today()}\tFinished scraping {cat}')
+            log = log_path.read_text()
+            log += f'\n{datetime.today()}\tFinished scraping {cat}'
+            log_path.write_text(log)
     
 if __name__ == '__main__':
     from pathlib import Path
     pcloud = Path.home() / 'pCloudDrive' / 'public_folder' / 'scholarly_data'
-    while True:
-        try:
-            scrape(
-                data_dir = 'data', 
-                start_from = 'cs.CV', 
-                log_path = pcloud / 'arxiv_data_log.txt'
-            )
-        except:
-            continue
+    scrape(
+        data_dir = 'data', 
+        start_from = 'cs.CV', 
+        log_path = pcloud / 'arxiv_data_log.txt'
+    )
