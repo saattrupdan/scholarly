@@ -16,31 +16,6 @@ class BatchWrapper:
     def __len__(self):
         return len(self.data_iter)
 
-def batch_iter(iterable: iter, batch_size: int):
-    ''' Split an iterable into batches. 
-    
-    INPUT
-        iterable: iter
-            An input iterable
-        batch_size: int
-            The size of each batch
-
-    OUTPUT
-        A generator that iterates over the input iterable in batches.
-        When there are no batches left then it will continue outputting
-        empty iterators
-    '''
-    from itertools import islice, chain
-    source_iter = iter(iterable)
-    while True:
-        batch_iter = islice(source_iter, batch_size)
-        try:
-            yield chain([next(batch_iter)], batch_iter)
-        except StopIteration:
-            break
-        finally:
-            del batch_iter
-
 def preprocess_data(
     cats_fname: str = 'arxiv_data_cats', 
     mcats_fname: str = 'arxiv_data_mcats', 
@@ -128,15 +103,16 @@ def load_data(tsv_fname: str, data_dir: str = 'data', batch_size: int = 32,
             The size of each batch
         split_ratio: float = 0.99
             The proportion of the dataset reserved for training
-        emb_dim: {50, 100, 200, 300} = 50
-            The dimension of the word vectors
-        random_seed: int = 42
-            A random seed to ensure that the same training/validation split
-            is achieved every time
         vectors: {'fasttext', 'glove'} = 'fasttext'
             The type of word vectors to use. Here the FastText vectors are
             trained on the abstracts and the GloVe vectors are pretrained
             on the 6B corpus
+        glove_emb_dim: {50, 100, 200, 300} = 100
+            The dimension of the GloVe word vectors. Only relevant if
+            <vectors> = 'glove'.
+        random_seed: int = 42
+            A random seed to ensure that the same training/validation split
+            is achieved every time
 
     OUTPUT
         A triple (train_iter, val_iter, TXT), with train_iter and val_iter
@@ -176,7 +152,11 @@ def load_data(tsv_fname: str, data_dir: str = 'data', batch_size: int = 32,
     )
 
     # Build the vocabulary of the training set
-    TXT.build_vocab(train, vectors = vocab.GloVe('6B', dim = emb_dim))
+    if vectors == 'glove':
+        vecs = vocab.GloVe('6B', dim = glove_emb_dim)
+    elif vectors == 'fasttext':
+        vecs = vocab.FastText(name = 'fasttext.vec', cache = data_dir) 
+    TXT.build_vocab(train, vectors = vecs)
 
     # Numericalise the texts, batch them into batches of similar text
     # lengths and pad the texts in each batch
@@ -186,6 +166,7 @@ def load_data(tsv_fname: str, data_dir: str = 'data', batch_size: int = 32,
         sort_key = lambda sample: len(sample.text)
     )
 
+    # Wrap the iterators to ensure that we output tensors
     train_dl = BatchWrapper(train_iter, cats = col_names[1:])
     val_dl = BatchWrapper(val_iter, cats = col_names[1:])
 
