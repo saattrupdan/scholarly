@@ -1,6 +1,7 @@
 def train_fasttext(
     txt_fname: str = 'preprocessed_docs.txt',
     model_fname: str = 'fasttext.bin', 
+    vec_fname: str = 'fasttext.txt',
     data_dir: str = 'data', 
     lr: float = 0.05, 
     emb_dim: int = 100, 
@@ -14,6 +15,7 @@ def train_fasttext(
 
     import fasttext
     from pathlib import Path
+    from tqdm import tqdm
 
     txt_path = Path(data_dir) / txt_fname
     model_path = Path(data_dir) / model_fname
@@ -31,7 +33,14 @@ def train_fasttext(
         wordNgrams = max_word_ngram,
     )
 
+    # Save model
     ft.save_model(str(model_path))
+
+    # Save vectors
+    with open(Path(data_dir) / vec_fname, 'w') as f:
+        for word in tqdm(ft.words, desc = 'Saving word vectors'):
+            vec_string = ' '.join(str(x) for x in ft.get_word_vector(word))
+            f.write(word + ' ' + vec_string + '\n')
     del ft
     
 
