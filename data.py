@@ -41,19 +41,18 @@ def batch_iter(iterable: iter, batch_size: int):
         finally:
             del batch_iter
 
-def preprocess_data(cats_fname: str = 'arxiv_data_cats', 
-    mcats_fname: str = 'arxiv_data_mcats', data_dir: str = 'data', 
+def preprocess_data(
+    cats_fname: str = 'arxiv_data_cats', 
+    mcats_fname: str = 'arxiv_data_mcats', 
+    txt_fname: str = 'preprocessed_docs.txt', 
+    data_dir: str = 'data', 
     batch_size: int = 1000):
     ''' 
-    Preprocess text data. This merges titles and abstracts, lemmatises 
-    all words, removes stop words, separates tokens by spaces and makes
-    all words lower case. It also saves the resulted dataframe into
-
-        <data_dir> / <tsv_fname>_pp.tsv.
-
-    Note that this function uses a constant amount of memory, which is
-    achieved by replacing the raw texts with the preprocessed texts in
-    batches.
+    Preprocess text data. This merges titles and abstracts and separates 
+    tokens by spaces. It saves this into a text file and also saves two
+    dataframes, one with all the categories and one with the master 
+    categories. Note that this function uses a constant amount of memory, 
+    which is achieved by working in batches and writing directly to the disk.
     
     INPUT
         cats_fname: str
@@ -62,6 +61,8 @@ def preprocess_data(cats_fname: str = 'arxiv_data_cats',
         mcats_fname: str
             The name of the tsv file containing only the master categories, 
             without file extension
+        txt_fname: str
+            The name of the txt file containing the preprocessed texts
         data_dir: str = 'data'
             The data directory
         batch_size: int = 1000
@@ -77,42 +78,41 @@ def preprocess_data(cats_fname: str = 'arxiv_data_cats',
     mcats_in = Path(data_dir) / (mcats_fname + '.tsv')
     cats_out = Path(data_dir) / (cats_fname + '_pp.tsv')
     mcats_out = Path(data_dir) / (mcats_fname + '_pp.tsv')
+    txt_path = Path(data_dir) / 'preprocessed_docs.txt'
 
-    # Load the English spaCy model
-    nlp = spacy.load('en', disable = ['tagger', 'parser', 'ner'])
+    # Load the English spaCy model used for tokenisation
+    nlp = spacy.load('en')
+    tokenizer = nlp.Defaults.create_tokenizer(nlp)
    
     # Load in the dataframe, merge titles and abstracts and batch them
     df = pd.read_csv(cats_in, sep = '\t', usecols = ['title', 'abstract'])
     df.dropna(inplace = True)
-    batches = batch_iter(df['title'] + ' ' + df['abstract'], batch_size)
-    nm_rows = len(df)
+    docs = df['title'] + ' ' + df['abstract']
     del df
 
-    # Preprocessing loop
-    docs = []
-    pbar = tqdm(desc = 'Preprocessing texts', total = nm_rows, leave = False)
-    for batch in batches:
-        docs.extend(' '.join(tok.lemma_.lower() 
-            for tok in doc if not tok.is_stop)
-            for doc in nlp.pipe(batch)
-        )
-        pbar.update(batch_size)
-    pbar.close()
+    # Tokenisation loop
+    with tqdm(desc = 'Preprocessing texts', total = len(docs)) as pbar:
+        with open(txt_path, 'w') as f:
+            for doc in tokenizer.pipe(docs, batch_size = batch_size):
+                f.write(' '.join(tok.text for tok in doc) + '\n')
+                pbar.update()
 
     # Add the preprocessed texts to the dataframe as the first column and
     # save to disk
-    pbar = tqdm([(cats_in, cats_out), (mcats_in, mcats_out)],
-        desc = 'Storing the preprocessed texts')
-    for (IN, OUT) in pbar:
-        df = pd.read_csv(IN, sep = '\t').dropna()
-        df.drop(columns = ['title', 'abstract'], inplace = True)
-        cats = df.columns.tolist()
-        df['text'] = docs
-        df = df[['text'] + cats]
-        df.to_csv(OUT, sep = '\t', index = False)
+    INS_OUTS = [(cats_in, cats_out), (mcats_in, mcats_out)]
+    with tqdm(INS_OUTS, desc = 'Storing the preprocessed texts') as pbar:
+        for (IN, OUT) in pbar:
+            df = pd.read_csv(IN, sep = '\t').dropna()
+            df.drop(columns = ['title', 'abstract'], inplace = True)
+            cats = df.columns.tolist()
+            with open(txt_path, 'r') as f:
+                df['text'] = f.readlines()
+            df = df[['text'] + cats]
+            df.to_csv(OUT, sep = '\t', index = False)
 
 def load_data(tsv_fname: str, data_dir: str = 'data', batch_size: int = 32,
-    split_ratio: float = 0.99, emb_dim: int = 50, random_seed: int = 42):
+    split_ratio: float = 0.99, emb_dim: int = 50, random_seed: int = 42,
+    vectors: str = 'fasttext'):
     ''' 
     Loads the preprocessed data, tokenises it, builds a vocabulary,
     splits into a training- and validation set, numeralises the texts,
@@ -133,6 +133,10 @@ def load_data(tsv_fname: str, data_dir: str = 'data', batch_size: int = 32,
         random_seed: int = 42
             A random seed to ensure that the same training/validation split
             is achieved every time
+        vectors: {'fasttext', 'glove'} = 'fasttext'
+            The type of word vectors to use. Here the FastText vectors are
+            trained on the abstracts and the GloVe vectors are pretrained
+            on the 6B corpus
 
     OUTPUT
         A triple (train_iter, val_iter, TXT), with train_iter and val_iter
