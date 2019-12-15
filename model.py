@@ -34,38 +34,38 @@ def train(model, train_dl, val_dl, epochs = 10, lr = 3e-4):
     criterion = nn.BCELoss()
 
     for epoch in range(epochs):
-        pbar = tqdm(total = len(train_dl) * train_dl.batch_size)
+        with tqdm(total = len(train_dl) * train_dl.batch_size) as pbar:
+            model.train()
 
-        model.train()
-        tot_loss, avg_loss = 0, 0
-        for idx, (x_train, y_train) in enumerate(train_dl):
-            optimizer.zero_grad()
+            tot_loss, avg_loss = 0, 0
+            for idx, (x_train, y_train) in enumerate(train_dl):
+                optimizer.zero_grad()
 
-            y_hat = model.forward(x_train)
-            loss = criterion(y_hat, y_train)
-            loss.backward()
-            optimizer.step()
+                y_hat = model.forward(x_train)
+                loss = criterion(y_hat, y_train)
+                loss.backward()
+                optimizer.step()
 
-            tot_loss += loss
-            avg_loss = tot_loss / (idx + 1)
+                tot_loss += loss
+                avg_loss = tot_loss / (idx + 1)
 
-            pbar.set_description(f'Epoch {epoch:2d} - loss {avg_loss:.4f}')
-            pbar.update(train_dl.batch_size)
+                pbar.set_description(f'Epoch {epoch:2d} - loss {avg_loss:.4f}')
+                pbar.update(train_dl.batch_size)
 
-        with torch.no_grad():
-            model.eval()
-            val_loss = 0
-            for x_val, y_val in val_dl:
-                y_hat = model.forward(x_val)
-                val_loss += criterion(y_hat, y_val)
-            val_loss /= len(val_dl)
+            with torch.no_grad():
+                model.eval()
+                val_loss = 0
+                for x_val, y_val in val_dl:
+                    y_hat = model.forward(x_val)
+                    val_loss += criterion(y_hat, y_val)
+                val_loss /= len(val_dl)
 
-            desc = f'Epoch {epoch:2d} - loss {avg_loss:.4f} - '\
-                   f'val_loss {val_loss:.4f}'
-            pbar.set_description(desc)
+                desc = f'Epoch {epoch:2d} - loss {avg_loss:.4f} - '\
+                       f'val_loss {val_loss:.4f}'
+                pbar.set_description(desc)
 
 if __name__ == '__main__':
     from data import load_data
     train_dl, val_dl, params = load_data('arxiv_data_mcats_pp')
-    model = BaseMLP(dim = 100, **params)
-    train(model, train_dl, val_dl, epochs = 10, lr = 3e-4)
+    model = BaseMLP(dim = 500, **params)
+    train(model, train_dl, val_dl, epochs = 100, lr = 3e-4)
