@@ -9,7 +9,6 @@ lxml==4.4.2
 murmurhash==1.0.2
 numpy==1.17.2
 pandas==0.25.1
-pkg-resources==0.0.0
 plac==0.9.6
 preshed==3.0.2
 python-dateutil==2.8.0
