@@ -86,7 +86,7 @@ def preprocess_data(
             df.to_csv(OUT, sep = '\t', index = False)
 
 def load_data(tsv_fname: str, data_dir: str = 'data', batch_size: int = 32,
-    split_ratio: float = 0.99, emb_dim: int = 50, random_seed: int = 42,
+    split_ratio: float = 0.99, glove_emb_dim: int = 100, random_seed: int = 42,
     vectors: str = 'fasttext'):
     ''' 
     Loads the preprocessed data, tokenises it, builds a vocabulary,
@@ -155,7 +155,7 @@ def load_data(tsv_fname: str, data_dir: str = 'data', batch_size: int = 32,
     if vectors == 'glove':
         vecs = vocab.GloVe('6B', dim = glove_emb_dim)
     elif vectors == 'fasttext':
-        vecs = vocab.FastText(name = 'fasttext.vec', cache = data_dir) 
+        vecs = vocab.Vectors('fasttext', cache = data_dir)
     TXT.build_vocab(train, vectors = vecs)
 
     # Numericalise the texts, batch them into batches of similar text
@@ -174,7 +174,7 @@ def load_data(tsv_fname: str, data_dir: str = 'data', batch_size: int = 32,
 
     params = {
         'vocab_size': len(TXT.vocab),
-        'emb_dim': emb_dim,
+        'emb_dim': glove_emb_dim if vectors == 'glove' else 100,
         'emb_matrix': TXT.vocab.vectors
     }
     return train_dl, val_dl, params
