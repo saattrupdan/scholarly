@@ -62,7 +62,8 @@ def preprocess_data(
     # Load in the dataframe, merge titles and abstracts and batch them
     df = pd.read_csv(cats_in, sep = '\t', usecols = ['title', 'abstract'])
     df.dropna(inplace = True)
-    docs = df['title'] + ' ' + df['abstract']
+    docs = '<title> ' + df['title'] + ' </title> '\
+           '<abstract> ' + df['abstract'] + ' </abstract>'
     del df
 
     # Tokenisation loop
@@ -153,7 +154,7 @@ def load_data(tsv_fname: str, data_dir: str = 'data', batch_size: int = 32,
 
     # Build the vocabulary of the training set
     if vectors == 'glove':
-        vecs = vocab.GloVe('6B', dim = glove_emb_dim)
+        vecs = vocab.GloVe('6B', dim = glove_emb_dim, cache = data_dir)
     elif vectors == 'fasttext':
         vecs = vocab.Vectors('fasttext', cache = data_dir)
     TXT.build_vocab(train, vectors = vecs)
