@@ -62,8 +62,8 @@ def preprocess_data(
     # Load in the dataframe, merge titles and abstracts and batch them
     df = pd.read_csv(cats_in, sep = '\t', usecols = ['title', 'abstract'])
     df.dropna(inplace = True)
-    docs = '<title> ' + df['title'] + ' </title> '\
-           '<abstract> ' + df['abstract'] + ' </abstract>'
+    docs = '-TITLE_START- ' + df['title'] + ' -TITLE_END- '\
+           '-ABSTRACT_START- ' + df['abstract'] + ' -ABSTRACT_END-'
     del df
 
     # Tokenisation loop
