@@ -62,7 +62,8 @@ def preprocess_data(
     # Load in the dataframe, merge titles and abstracts and batch them
     df = pd.read_csv(cats_in, sep = '\t', usecols = ['title', 'abstract'])
     df.dropna(inplace = True)
-    docs = df['title'] + ' ' + df['abstract']
+    docs = '-TITLE_START- ' + df['title'] + ' -TITLE_END- '\
+           '-ABSTRACT_START- ' + df['abstract'] + ' -ABSTRACT_END-'
     del df
 
     # Tokenisation loop
@@ -112,13 +113,20 @@ def load_data(tsv_fname: str, data_dir: str = 'data', batch_size: int = 32,
             <vectors> = 'glove'.
         random_seed: int = 42
             A random seed to ensure that the same training/validation split
-            is achieved every time
+            is achieved every time. If set to None then no seed is used.
 
     OUTPUT
-        A triple (train_iter, val_iter, TXT), with train_iter and val_iter
+        A triple (train_iter, val_iter, params), with train_iter and val_iter
         being the iterators that iterates over the training- and validation
-        samples, respectively, and TXT is the torchtext.Field object which
-        contains the vocabulary
+        samples, respectively, and params is a dictionary with entries:
+            vocab_size
+                The size of the vocabulary
+            emb_dim
+                The dimension of the word vectors. Will be equal to
+                <glove_emb_dim> if <vectors> = 'glove', and otherwise
+                set to 100
+            emb_matrix
+                The embedding matrix containing the word vectors
     '''
     from torchtext import data, vocab
     from pathlib import Path
@@ -145,15 +153,18 @@ def load_data(tsv_fname: str, data_dir: str = 'data', batch_size: int = 32,
     )
 
     # Split into a training- and validation set
-    random.seed(random_seed)
-    train, val = dataset.split(
-        split_ratio = split_ratio, 
-        random_state = random.getstate()
-    )
+    if random_seed is None:
+        train_val = dataset.split(split_ratio = split_ratio)
+    else:
+        random.seed(random_seed)
+        train, val = dataset.split(
+            split_ratio = split_ratio, 
+            random_state = random.getstate()
+        )
 
     # Build the vocabulary of the training set
     if vectors == 'glove':
-        vecs = vocab.GloVe('6B', dim = glove_emb_dim)
+        vecs = vocab.GloVe('6B', dim = glove_emb_dim, cache = data_dir)
     elif vectors == 'fasttext':
         vecs = vocab.Vectors('fasttext', cache = data_dir)
     TXT.build_vocab(train, vectors = vecs)

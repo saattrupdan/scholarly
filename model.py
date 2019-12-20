@@ -18,30 +18,31 @@ class MLP(Base):
 
     def forward(self, x):
         x = self.embed(x)
+        x = x / (torch.norm(x, dim = 2,) + 1e-12)
         x = torch.mean(x, dim = 0)
         x = F.elu(self.fc(x))
         return torch.sigmoid(self.out(x)).squeeze()
 
-def train_nn(nn_model, train_dl, val_dl, epochs = 10, lr = 3e-4):
+def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4):
     from tqdm.auto import tqdm
     from sklearn.metrics import f1_score
 
     print(f'Training on {len(train_dl) * train_dl.batch_size:,d} samples '\
           f'and validating on {len(val_dl) * val_dl.batch_size:,d} samples.')
-    print(f'Number of trainable parameters: {nn_model.trainable_params():,d}')
+    print(f'Number of trainable parameters: {model.trainable_params():,d}')
 
-    optimizer = optim.Adam(nn_model.parameters(), lr = lr)
+    optimizer = optim.Adam(model.parameters(), lr = lr)
     criterion = nn.BCELoss()
 
     for epoch in range(epochs):
         with tqdm(total = len(train_dl) * train_dl.batch_size) as pbar:
-            nn_model.train()
+            model.train()
 
             tot_loss, avg_loss, tot_f1, avg_f1 = 0, 0, 0, 0
             for idx, (x_train, y_train) in enumerate(train_dl):
                 optimizer.zero_grad()
 
-                y_hat = nn_model.forward(x_train)
+                y_hat = model.forward(x_train)
                 loss = criterion(y_hat, y_train)
                 loss.backward()
                 optimizer.step()
@@ -58,10 +59,10 @@ def train_nn(nn_model, train_dl, val_dl, epochs = 10, lr = 3e-4):
                 pbar.update(train_dl.batch_size)
 
             with torch.no_grad():
-                nn_model.eval()
+                model.eval()
                 val_loss, val_f1 = 0, 0
                 for x_val, y_val in val_dl:
-                    y_hat = nn_model.forward(x_val)
+                    y_hat = model.forward(x_val)
                     val_loss += criterion(y_hat, y_val)
                     val_f1 += f1_score(y_hat > 0.5, y_val, average = 'samples')
                 val_loss /= len(val_dl)
@@ -76,11 +77,11 @@ if __name__ == '__main__':
     from data import load_data
 
     train_dl, val_dl, params = load_data(
-        'arxiv_data_mcats_pp_mini',
-        vectors = 'glove',
+        tsv_fname = 'arxiv_data_mcats_pp',
+        vectors = 'fasttext',
         batch_size = 32,
-        split_ratio = 0.9
+        split_ratio = 0.98
     )
 
     mlp = MLP(dim = 100, **params)
-    train_nn(mlp, train_dl, val_dl, epochs = 5, lr = 3e-4)
+    train_model(mlp, train_dl, val_dl, epochs = 5, lr = 3e-4)
