@@ -1,6 +1,6 @@
 venv/*
-.ipynb_checkpoints/*
-data/*
-*.swp
-__pycache__/*
-.vector_cache/*
+.data/*
+**/*.swp
+**/.ipynb_checkpoints/*
+**/__pycache__/*
+**/.vector_cache/*

@@ -7,9 +7,6 @@ class Base(nn.Module):
     def __init__(self, **params):
         super().__init__()
         self.params = params
-        self.embed = nn.Embedding(params['vocab_size'], params['emb_dim'])
-        self.embed.weight = nn.Parameter(params['emb_matrix'], 
-            requires_grad = False)
 
     def trainable_params(self):
         train_params = (p for p in self.parameters() if p.requires_grad)
@@ -54,9 +51,27 @@ class Base(nn.Module):
                 )
             return report
 
-class LogReg(Base):
+class BertMLP(Base):
     def __init__(self, **params):
         super().__init__(**params)
+        self.fcs = nn.ModuleList(
+            [nn.Linear(768, params['dim'])] + \
+            [nn.Linear(params['dim'], params['dim']) 
+                for _ in range(params['nlayers'] - 1)]
+        )
+        self.out = nn.Linear(params['dim'], 6)
+
+    def forward(self, x):
+        for fc in self.fcs:
+            x = F.elu(fc(x))
+        return self.out(x)
+
+class EmbedLogReg(Base):
+    def __init__(self, **params):
+        super().__init__(**params)
+        self.embed = nn.Embedding(params['vocab_size'], params['emb_dim'])
+        self.embed.weight = nn.Parameter(params['emb_matrix'], 
+            requires_grad = False)
         self.out = nn.Linear(params['emb_dim'], 6)
 
     def forward(self, x):
@@ -65,9 +80,12 @@ class LogReg(Base):
         x = torch.mean(x, dim = 0)
         return self.out(x).squeeze()
 
-class MLP(Base):
+class EmbedMLP(Base):
     def __init__(self, **params):
         super().__init__(**params)
+        self.embed = nn.Embedding(params['vocab_size'], params['emb_dim'])
+        self.embed.weight = nn.Parameter(params['emb_matrix'], 
+            requires_grad = False)
         self.fcs = nn.ModuleList(
             [nn.Linear(params['emb_dim'], params['dim'])] + \
             [nn.Linear(params['dim'], params['dim']) 
@@ -97,9 +115,12 @@ class SelfAttention(nn.Module):
         x = torch.bmm(x, inputs)
         return x.permute(1, 0, 2)
 
-class RNN(Base):
+class EmbedAttnRNN(Base):
     def __init__(self, **params):
         super().__init__(**params)
+        self.embed = nn.Embedding(params['vocab_size'], params['emb_dim'])
+        self.embed.weight = nn.Parameter(params['emb_matrix'], 
+            requires_grad = False)
         self.encoder = nn.GRU(params['emb_dim'], params['dim'],
             bidirectional = True)
         self.attn = SelfAttention(2 * params['dim'])
@@ -116,19 +137,23 @@ class RNN(Base):
 
 
 if __name__ == '__main__':
-    from data import load_data
+    from data import load_embed_data, load_bert_data
     from training import train_model
 
-    train_dl, val_dl, params = load_data(
+    #train_dl, val_dl = load_bert_data(
+    #    fname = 'arxiv_data_mcats_pp_mini',
+    #    batch_size = 32,
+    #    split_ratio = 0.9
+    #)
+
+    train_dl, val_dl, params = load_embed_data(
         tsv_fname = 'arxiv_data_mcats_pp_mini',
         vectors = 'fasttext',
         batch_size = 32,
         split_ratio = 0.9
     )
 
-    model_type = RNN
-    for model_type in [LogReg, MLP]:
-        print(f'\n===== Now training {model_type.__name__} =====\n')
-        model = model_type(dim = 128, nlayers = 2, **params)
-        model = train_model(model, train_dl, val_dl, epochs = 50, lr = 3e-4)
-        print(model.report(val_dl, mcats = True))
+    model = EmbedMLP(dim = 500, nlayers = 2, **params)
+    model = train_model(model, train_dl, val_dl, epochs = 50, lr = 3e-4)
+    print(model.report(val_dl, mcats = True))
+

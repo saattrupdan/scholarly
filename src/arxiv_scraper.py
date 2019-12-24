@@ -113,7 +113,7 @@ def fetch(category: str, all_cats: list, max_results: int = 5, start: int = 0):
 
     return papers
 
-def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data', 
+def scrape(db_name: str = 'arxiv_data', data_dir: str = '.data', 
     batch_size: int = 1000, patience: int = 20, overwrite: bool = False, 
     start_from: str = None, log_path: str = None):
     ''' Scrape papers from the ArXiv.
@@ -121,7 +121,7 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data',
     INPUT
         db_name: str = 'arxiv_data'
             Name of the SQLite databse where the data will be stored
-        data_dir: str = 'data'
+        data_dir: str = '.data'
             Directory in which the data files are to be stored
         batch_size: int = 1000
             The amount of papers fetched at each GET request - ArXiv limits
@@ -140,18 +140,19 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = 'data',
     '''
     from time import sleep
     from tqdm.auto import tqdm
-    from pathlib import Path
     from shutil import copy
     from db import ArXivDatabase
     from datetime import datetime
+    from pathlib import Path
+    from utils import get_path
 
     # Create data directory
-    data_dir = Path(data_dir)
+    data_dir = get_path(data_dir)
     if not data_dir.is_dir():
         data_dir.mkdir()
 
     # Create database path
-    db_path = data_dir / (db_name + '.db')
+    db_path = data_dir / f'{db_name}.db'
 
     # Create log path if it exists
     if log_path is not None:
@@ -232,7 +233,6 @@ if __name__ == '__main__':
     from pathlib import Path
     pcloud = Path.home() / 'pCloudDrive' / 'public_folder' / 'scholarly_data'
     scrape(
-        data_dir = 'data', 
-        start_from = 'cs.CV', 
+        data_dir = '.data', 
         log_path = pcloud / 'arxiv_data_log.txt'
     )

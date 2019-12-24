@@ -4,14 +4,14 @@ class ArXivDatabase:
     INPUT
         name: str = 'arxiv_data.db'
             Name of the database
-        data_dir: str = 'data'
+        data_dir: str = '.data'
             Folder which contains the database
     '''
 
-    def __init__(self, name: str = 'arxiv_data.db', data_dir: str = 'data'):
+    def __init__(self, name: str = 'arxiv_data.db', data_dir: str = '.data'):
         from sqlalchemy import create_engine
-        from pathlib import Path
-        db_path = Path(data_dir) / name
+        from utils import get_path
+        db_path = get_path(data_dir) / name
         self.engine = create_engine(f'sqlite:///{db_path}')
         self.create_tables()
         self.populate_cats()
@@ -237,14 +237,15 @@ class ArXivDatabase:
         return df.drop(columns = ['id'])
 
 if __name__ == '__main__':
-    from pathlib import Path
+    from utils import path
 
     # Open database
-    db = ArXivDatabase(data_dir = 'data')
+    db = ArXivDatabase(data_dir = '.data')
 
     # Pull out a abstracts and categories into a tsv file
     df = db.get_training_df(only_master_cats = True)
-    df.to_csv(Path('data') / 'arxiv_data_mcats.tsv', sep = '\t', index = False)
+    df.to_csv(get_path('.data') / 'arxiv_data_mcats.tsv', sep = '\t', 
+        index = False)
 
     # Example query: Output the number of authors in database
     #with db.engine.connect() as conn:

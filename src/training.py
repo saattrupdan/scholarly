@@ -2,9 +2,10 @@ import torch
 from torch import nn
 from torch import optim
 from torch.nn import functional as F
+from tqdm.auto import tqdm
+from utils import get_path
 
 def calculate_class_weights(train_dl, pbar_width: int = None):
-    from tqdm.auto import tqdm
 
     counts = None
     for _, y_train in tqdm(train_dl, desc = 'Calculating class weights',
@@ -19,10 +20,8 @@ def calculate_class_weights(train_dl, pbar_width: int = None):
     return torch.max(counts) / counts
 
 def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
-    data_dir: str = 'data', pbar_width: int = None):
-    from tqdm.auto import tqdm
+    data_dir: str = '.data', pbar_width: int = None):
     from sklearn.metrics import f1_score
-    from pathlib import Path
     import warnings
 
     print(f'Training on {len(train_dl) * train_dl.batch_size:,d} samples '\
@@ -104,7 +103,7 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                 if val_macro_f1 > best_score:
                     best_score = val_macro_f1
                     model_type = type(model).__name__
-                    for f in Path(data_dir).glob(f'{model_type}*.pt'):
+                    for f in get_path(data_dir).glob(f'{model_type}*.pt'):
                         f.unlink()
 
                     data = {
@@ -118,7 +117,7 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
 
                     with warnings.catch_warnings():
                         warnings.simplefilter('ignore')
-                        torch.save(data, Path(data_dir) / model_fname)
+                        torch.save(data, get_path(data_dir) / model_fname)
 
                 desc = f'Epoch {epoch:2d} - loss {avg_loss:.4f} - '\
                        f'sample f1 {avg_f1:.4f} - val_loss {val_loss:.4f} - '\

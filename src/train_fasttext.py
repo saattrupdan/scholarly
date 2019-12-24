@@ -2,7 +2,7 @@ def train_fasttext(
     txt_fname: str,
     model_fname: str = 'fasttext.bin', 
     vec_fname: str = 'fasttext',
-    data_dir: str = 'data', 
+    data_dir: str = '.data', 
     lr: float = 0.05, 
     emb_dim: int = 100, 
     window: int = 5, 
@@ -23,7 +23,7 @@ def train_fasttext(
             The name of the output FastText model file
         vec_fname: str = 'fasttext'
             The name of the output txt file containing the word vectors
-        data_dir: str = 'data'
+        data_dir: str = '.data'
             The directory containing all data files
         lr: float = 0.05
             The learning rate
@@ -46,11 +46,11 @@ def train_fasttext(
             The maximum number of words in the word n-grams
     '''
     import fasttext
-    from pathlib import Path
-    from tqdm import tqdm
+    from tqdm.auto import tqdm
+    from utils import get_path
 
-    txt_path = Path(data_dir) / txt_fname
-    model_path = Path(data_dir) / model_fname
+    txt_path = get_path(data_dir) / txt_fname
+    model_path = get_path(data_dir) / model_fname
 
     ft = fasttext.train_unsupervised(
         str(txt_path),
@@ -69,7 +69,7 @@ def train_fasttext(
     ft.save_model(str(model_path))
 
     # Save vectors
-    with open(Path(data_dir) / vec_fname, 'w') as f:
+    with open(get_path(data_dir) / vec_fname, 'w') as f:
         for word in tqdm(ft.words, desc = 'Saving word vectors'):
             vec_string = ' '.join(str(x) for x in ft.get_word_vector(word))
             f.write(word + ' ' + vec_string + '\n')
@@ -79,7 +79,7 @@ def train_fasttext(
 if __name__ == '__main__':
     train_fasttext(
         txt_fname = 'preprocessed_docs.txt',
-        data_dir = 'data',
+        data_dir = '.data',
         min_count = 2,
         min_char_ngram = 2
     )
