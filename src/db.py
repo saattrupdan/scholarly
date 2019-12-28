@@ -182,6 +182,42 @@ class ArXivDatabase:
 
         return self
 
+    def get_cats(self, conn = None, data_dir: str = '.data') -> list:
+        ''' Get a list of all the categories. '''
+        from utils import get_path
+        import json
+
+        if conn is None:
+            with self.engine.connect() as conn:
+                cat_result = conn.execute('select id from cats')
+                cats = [cat[0] for cat in cat_result]
+        else:
+            cat_result = conn.execute('select id from cats')
+            cats = [cat[0] for cat in cat_result]
+
+        if save_to is not None:
+            with open(get_path(data_dir) / 'cats.json', 'w') as f:
+                json.dump(cats, f)
+
+    def get_mcat_dict(self, conn = None, data_dir: str = '.data') -> dict:
+        ''' Get a dictionary mapping each category to its master category. '''
+        from utils import get_path
+        import json
+
+        if conn is None:
+            with self.engine.connect() as conn:
+                mcat_result = conn.execute('select id, master_cat from cats')
+                mcat_dict = {pair[0]: pair[1] for pair in mcat_result}
+        else:
+            mcat_result = conn.execute('select id, master_cat from cats')
+            mcat_dict = {pair[0]: pair[1] for pair in mcat_result}
+
+        if save_to is not None:
+            with open(get_path(data_dir) / 'mcat_dict.json', 'w') as f:
+                json.dump(mcat_dict, f)
+
+        return mcat_dict
+
     def get_training_df(self, only_master_cats: bool = False):
         ''' Get a dataframe with titles, abstracts and categories
             of all the papers in the database.
@@ -199,7 +235,10 @@ class ArXivDatabase:
         import pandas as pd
         from tqdm.auto import tqdm
 
-        with db.engine.connect() as conn:
+        with self.engine.connect() as conn:
+
+            cats = self.get_cats(conn)
+            mcat_dict = self.get_mcat_dict(conn)
 
             # Convert the papers table in the database to a dataframe
             df = pd.read_sql_table(
@@ -207,14 +246,6 @@ class ArXivDatabase:
                 con = conn, 
                 columns = ['id', 'title', 'abstract'],
             )
-
-            # Get a list of all the categories
-            cat_result = conn.execute('select id from cats')
-            cats = [cat[0] for cat in cat_result]
-
-            # Get a dictionary that maps each category to its master category
-            mcat_result = conn.execute('select id, master_cat from cats')
-            mcat_dict = {pair[0]: pair[1] for pair in mcat_result}
 
             # Add every category as a column to the dataframe, with 0/1
             # values associated to each paper, signifying whether the paper
@@ -237,15 +268,18 @@ class ArXivDatabase:
         return df.drop(columns = ['id'])
 
 if __name__ == '__main__':
-    from utils import path
+    from utils import get_path
 
     # Open database
     db = ArXivDatabase(data_dir = '.data')
 
+    db.get_mcat_dict(save_to = get_path('.data') / 'mcat_dict.json')
+    db.get_cats(save_to = get_path('.data') / 'cats.json')
+
     # Pull out a abstracts and categories into a tsv file
-    df = db.get_training_df(only_master_cats = True)
-    df.to_csv(get_path('.data') / 'arxiv_data_mcats.tsv', sep = '\t', 
-        index = False)
+    #df = db.get_training_df(only_master_cats = True)
+    #df.to_csv(get_path('.data') / 'arxiv_data_mcats.tsv', sep = '\t', 
+    #    index = False)
 
     # Example query: Output the number of authors in database
     #with db.engine.connect() as conn:
