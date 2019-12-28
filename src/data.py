@@ -6,158 +6,20 @@ from pathlib import Path
 from tqdm.auto import tqdm
 from utils import get_path
 
-class BertDataset(data.Dataset):
-    def __init__(self, fname: str, data_dir: str = '.data'):
-
-        nsents = sum(len(x) for x in pd.read_csv(
-            get_path(data_dir) / f'{fname}.tsv',
-            sep = '\t', 
-            usecols = [0], 
-            squeeze = True, 
-            chunksize = 50000
-            )
-        )
-
-        self.memmap = np.memmap(
-            get_path(data_dir) / f'{fname}.npy', 
-            dtype = np.float, 
-            mode = 'r',
-            shape = (nsents, 768)
-        )
-
-        self.labels = pd.read_csv(
-            get_path(data_dir) / f'{fname}.tsv', 
-            sep = '\t', 
-            usecols = lambda x: x not in ['text']
-        ).values
-
-    def __getitem__(self, idx):
-        x = torch.FloatTensor(self.memmap[idx, :])
-        y = torch.FloatTensor(self.labels[idx, :])
-        return x, y
-
-    def __len__(self):
-        return self.memmap.shape[0]
-
-    @classmethod
-    def splits(cls, fname: str, split_ratio: float = 0.99,
-        data_dir: str = '.data'):
-
-        x_train_path = get_path(data_dir) / f'{fname}_train.npy'
-        x_val_path = get_path(data_dir) / f'{fname}_val.npy'
-        y_train_path = get_path(data_dir) / f'{fname}_train.tsv'
-        y_val_path = get_path(data_dir) / f'{fname}_val.tsv'
-
-        if not x_train_path.is_file() or not x_val_path.is_file() or \
-           not y_train_path.is_file() or not y_val_path.is_file():
-            split_bert_data(
-                fname = fname, 
-                split_ratio = split_ratio, 
-                data_dir = data_dir
-            )
-
-        train = cls(fname = f'{fname}_train', data_dir = data_dir)
-        val = cls(fname = f'{fname}_val', data_dir = data_dir)
-
-        return train, val
-
-def get_bert_sentence_embeddings(fname: str, data_dir: str = '.data'):
-    from transformers import DistilBertModel, DistilBertTokenizer
-    
-    tsv_path = get_path(data_dir) / f'{fname}.tsv'
-    nsents = sum(len(x) for x in pd.read_csv(tsv_path, '\t', 
-        usecols = [2], squeeze = True, chunksize = 50000))
-
-    model_name = 'distilbert-base-uncased'
-    bert = DistilBertModel.from_pretrained(model_name)
-    tokenizer = DistilBertTokenizer.from_pretrained(model_name)
-
-    sentences = pd.read_csv(get_path(data_dir) / f'{fname}.tsv', '\t', 
-        usecols = ['text'], squeeze = True, chunksize = 1)
-    sentences = (list(sentence)[0].strip() for sentence in sentences)
-    tokenized = (tokenizer.tokenize(sentence) for sentence in sentences)
-    bert_tokens = (['[CLS]'] + tokens[:510] + ['SEP'] for tokens in tokenized)
-    numericalized = (tokenizer.convert_tokens_to_ids(tokens)
-                     for tokens in bert_tokens)
-
-    sentence_embeddings = np.memmap(get_path(data_dir) / f'{fname}.npy', 
-        dtype = np.float, mode = 'w+', shape = (nsents, 768))
-
-    with tqdm(total = nsents, desc = 'Generating sentence embeddings') as pbar:
-        with torch.no_grad():
-            for idx, nums in enumerate(numericalized):
-                inputs = torch.LongTensor([nums])
-                sentence_embeddings[idx, :] = bert(inputs)[0][:, 0, :]
-                pbar.update()
-
-    del sentence_embeddings, bert, tokenizer
-
-def split_bert_data(fname: str, split_ratio: float = 0.99, 
-    data_dir: str = '.data'):
-
-    nsents = sum(len(x) for x in pd.read_csv(
-        get_path(data_dir) / f'{fname}.tsv',
-        sep = '\t', 
-        usecols = [2], 
-        squeeze = True, 
-        chunksize = 50000
-        )
-    )
-
-    embeds = np.memmap(get_path(data_dir) / f'{fname}.npy', 
-        dtype = np.float, mode = 'r', shape = (nsents, 768))
-
-    ntrains = int(nsents * split_ratio)
-    x_train = np.memmap(get_path(data_dir) / f'{fname}_train.npy', 
-        dtype = np.float, mode = 'w+', shape = (ntrains, 768))
-    x_val = np.memmap(get_path(data_dir) / f'{fname}_val.npy', 
-        dtype = np.float, mode = 'w+', shape = (nsents - ntrains, 768))
-
-    train_indices = np.random.choice(range(nsents), size = ntrains, 
-        replace = False)
-    train_indices = np.isin(range(nsents), train_indices, assume_unique = True)
-    x_train = embeds[train_indices, :]
-    x_val = embeds[~train_indices, :]
-
-    labels = pd.read_csv(get_path(data_dir) / f'{fname}.tsv', sep = '\t')
-    y_train = labels.iloc[train_indices, :]
-    y_val = labels.iloc[~train_indices, :]
-
-    y_train.to_csv(get_path(data_dir) / f'{fname}_train.tsv', sep = '\t', 
-        index = False)
-    y_val.to_csv(get_path(data_dir) / f'{fname}_val.tsv', sep = '\t', 
-        index = False)
-
-    del embeds, x_train, x_val, labels, y_train, y_val
-
-def load_bert_data(fname: str, split_ratio: float = 0.99, 
-    batch_size: int = 32, data_dir: str = '.data'):
-
-    train, val = BertDataset.splits(
-        fname = fname, 
-        data_dir = data_dir, 
-        split_ratio = split_ratio
-    )
-
-    train_dl = data.DataLoader(train, batch_size = batch_size, shuffle = True)
-    val_dl = data.DataLoader(val, batch_size = batch_size, shuffle = True)
-
-    del train, val
-    return train_dl, val_dl
-
 class BatchWrapper:
     ''' Wrap a torchtext data iterator. '''
-    def __init__(self, data_iter, cats: list):
+    def __init__(self, data_iter, data_dir: str = '.data'):
+        from utils import get_cats
         self.data_iter = data_iter
         self.batch_size = data_iter.batch_size
-        self.cats = cats
+        self.cats = get_cats(data_dir = data_dir)
 
     def __iter__(self):
         for batch in self.data_iter:
             x = batch.text
             y = torch.cat([getattr(batch, cat).unsqueeze(1) 
-                for cat in self.cats], dim = 1)
-            yield (x, y.float())
+                for cat in self.cats], dim = 1).float()
+            yield (x, y)
 
     def __len__(self):
         return len(self.data_iter)
@@ -229,7 +91,7 @@ def preprocess_data(
             df = df[['text'] + cats]
             df.to_csv(OUT, sep = '\t', index = False)
 
-def load_embed_data(tsv_fname: str, data_dir: str = '.data', 
+def load_data(tsv_fname: str, data_dir: str = '.data', 
     batch_size: int = 32, split_ratio: float = 0.99, glove_emb_dim: int = 100,
     random_seed: int = 42, vectors: str = 'fasttext'):
     ''' 
@@ -272,22 +134,20 @@ def load_embed_data(tsv_fname: str, data_dir: str = '.data',
                 The embedding matrix containing the word vectors
     '''
     from torchtext import data, vocab
+    from utils import get_cats
     import random
-
-    # Build the tsv path
-    path = get_path(data_dir) / f'{tsv_fname}.tsv'
 
     # Define the two types of fields in the tsv file
     TXT = data.Field()
     CAT = data.Field(sequential = False, use_vocab = False, is_target = True)
 
     # Set up the columns in the tsv file with their associated fields
-    col_names = pd.read_csv(path, sep = '\t', nrows = 1).columns.tolist()
-    fields = [('text', TXT)] + [(col_name, CAT) for col_name in col_names[1:]]
+    cats = get_cats(data_dir = data_dir)
+    fields = [('text', TXT)] + [(cat, CAT) for cat in cats]
 
     # Load in the dataset and tokenise the texts
     dataset = data.TabularDataset(
-        path = path,
+        path = get_path(data_dir) / f'{tsv_fname}.tsv',
         format = 'tsv',
         fields = fields,
         skip_header = True
@@ -320,8 +180,8 @@ def load_embed_data(tsv_fname: str, data_dir: str = '.data',
     )
 
     # Wrap the iterators to ensure that we output tensors
-    train_dl = BatchWrapper(train_iter, cats = col_names[1:])
-    val_dl = BatchWrapper(val_iter, cats = col_names[1:])
+    train_dl = BatchWrapper(train_iter)
+    val_dl = BatchWrapper(val_iter)
 
     params = {
         'vocab_size': len(TXT.vocab),
@@ -334,17 +194,20 @@ def load_embed_data(tsv_fname: str, data_dir: str = '.data',
 
 
 if __name__ == '__main__':
-    train_dl, val_dl = load_bert_data(
-        fname = 'arxiv_data_mcats_pp_mini', 
-        split_ratio = 0.9,
-        batch_size = 32
+
+    train_dl, val_dl, params = load_embed_data(
+        tsv_fname = 'arxiv_data_cats_pp_mini',
+        split_ratio = 0.9
     )
 
     for x, y in train_dl:
-        print('Train dataloader:', x.shape, y.shape)
-        break
-    for x, y in val_dl:
-        print('Val dataloader:', x.shape, y.shape)
+        print('Train dataloader:', x.shape)
+        for z in y:
+            print(z.shape)
         break
 
-    #get_bert_sentence_vectors('arxiv_data_mcats_pp_mini')
+    for x, y in val_dl:
+        print('Val dataloader:', x.shape)
+        for z in y:
+            print(z.shape)
+        break
