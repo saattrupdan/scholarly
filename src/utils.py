@@ -1,4 +1,5 @@
 from pathlib import Path
+import torch
 
 def get_root_path() -> Path:
     ''' Returns project root folder. '''
@@ -8,6 +9,67 @@ def get_path(path_name: str) -> Path:
     ''' Returns data folder. '''
     return get_root_path() / path_name
 
+def get_cats(data_dir: str = '.data') -> list:
+    import json
+    with open(get_path(data_dir) / 'cats.json', 'r') as f:
+        return json.load(f)
+
+def get_mcat_dict(data_dir: str = '.data') -> list:
+    import json
+    with open(get_path(data_dir) / 'mcat_dict.json', 'r') as f:
+        return json.load(f)
+
+def get_nrows(fname: str, data_dir: str = '.data') -> int:
+    import pandas as pd
+    path = get_path(data_dir) / fname
+    df = pd.read_csv(path, sep = '\t', usecols = [0], chunksize = 10000)
+    return sum(len(x) for x in df)
+
+def get_mcats(data_dir: str = '.data') -> list:
+    cats = get_cats(data_dir = data_dir)
+    mcat_dict = get_mcat_dict(data_dir = data_dir)
+    duplicate_mcats = [mcat_dict[cat] for cat in cats]
+
+    # Get unique master categories while preserving the order
+    mcats = list(dict.fromkeys(duplicate_mcats).keys())
+
+    return mcats
+
+def get_mcat_masks(data_dir: str = '.data'):
+    cats, mcats, mcat_dict = get_cats(), get_mcats(), get_mcat_dict()
+    mcat2idx = {mcat:idx for idx, mcat in enumerate(mcats)}
+    mcat_idxs = [mcat2idx[mcat] for mcat in mcats]
+    dup_cats = torch.LongTensor([mcat2idx[mcat_dict[cat]] for cat in cats])
+    return [dup_cats == mcat_idx for mcat_idx in mcat_idxs]
+
+def cats2mcats(pred, target, masks: list = None, data_dir: str = '.data'):
+    if masks is None:
+        masks = get_mcat_masks(data_dir = data_dir)
+    mpred = torch.stack([torch.sum((mask * pred) > 0, dim = 1).float()
+        for mask in masks], dim = 1)
+    mtarget = torch.stack([torch.max(mask * target, dim = 1).values.float()
+        for mask in masks], dim = 1)
+    return mpred, mtarget
+
+def get_class_weights(dl, pbar_width: int = None, data_dir: str = '.data'):
+    from tqdm.auto import tqdm
+    with tqdm(desc = 'Calculating class weights', ncols = pbar_width,
+        total = len(dl) * dl.batch_size) as pbar:
+        counts = None
+        for _, y in dl:
+            if counts is None:
+                counts = torch.sum(y, dim = 0) 
+            else:
+                counts += torch.sum(y, dim = 0)
+            pbar.update(dl.batch_size)
+        cat_weights = torch.max(counts) / counts
+
+    mcat_masks = get_mcat_masks()
+    mcat_counts = [torch.sum(counts * mask) for mask in mcat_masks]
+    mcat_counts = torch.FloatTensor(mcat_counts)
+    mcat_weights = torch.max(mcat_counts) / mcat_counts
+    return {'cat_weights': cat_weights, 'mcat_weights': mcat_weights}
+
+
 if __name__ == '__main__':
-    readme = get_root_path() / 'README.md'
-    print(readme.is_file())
+    print(get_mcat_masks())
