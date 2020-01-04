@@ -23,14 +23,29 @@ class Base(nn.Module):
         train_params = (p for p in self.parameters() if p.requires_grad)
         return sum(param.numel() for param in train_params)
 
-    def report(self, val_dl, output_dict: bool = False, 
+    def evaluate(self, val_dl, output_dict: bool = False, 
         data_dir: str = '.data'):
-        from inference import get_scores
-        return get_scores(self, val_dl, output_dict, data_dir)
+        from inference import evaluate
+        return evaluate(self, val_dl, output_dict, data_dir)
 
     def predict(self, title: str, abstract: str):
         from inference import predict
         return predict(self, title, abstract)
+
+    def fit(self, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
+        mcat_ratio: float = 0.5, data_dir: str = '.data', 
+        pbar_width: int = None):
+        from training import train_model
+        params = {
+            'train_dl': train_dl,
+            'val_dl': val_dl,
+            'epochs': epochs,
+            'lr': lr,
+            'mcat_ratio': mcat_ratio,
+            'data_dir': data_dir,
+            'pbar_width': pbar_width
+        }
+        return train_model(self, **params)
 
 class BoomBlock(nn.Module):
     def __init__(self, dim: int, boom_dim: int):
@@ -77,7 +92,7 @@ class ConvBlock(nn.Module):
             x = F.elu(conv(x))
         if self.pool is not None:
             x = self.pool(x)
-        x.permute(2, 0, 1)
+        x = x.permute(2, 0, 1)
         if self.norm is not None:
             x = self.norm(x)
         return x
@@ -170,7 +185,7 @@ class MLP(Base):
         super().__init__(**params)
         self.fc = FCBlock(params['emb_dim'], params['dim'],
             nlayers = params.get('nlayers', 1), normalise = True)
-        self.out = nn.Linear(params['emb_dim'], self.ntargets)
+        self.out = nn.Linear(params['dim'], self.ntargets)
         
     def forward(self, x):
         x = self.embed(x)
@@ -186,8 +201,10 @@ class CNN(Base):
         self.out = nn.Linear(params['dim'], self.ntargets)
 
     def forward(self, x):
+        x = self.embed(x)
         x = self.conv(x)
         x = self.fc(x)
+        x = torch.mean(x, dim = 0)
         return self.out(x)
 
 

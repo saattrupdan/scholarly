@@ -7,7 +7,7 @@ from tqdm.auto import tqdm
 def predict(model, title: str, abstract: str):
     pass
 
-def get_scores(model, val_dl, output_dict: bool = False,
+def evaluate(model, val_dl, output_dict: bool = False,
     data_dir: str = '.data'):
     from sklearn.metrics import classification_report
     import warnings

@@ -6,7 +6,7 @@ from tqdm.auto import tqdm
 from utils import get_path
 
 class NestedBCELoss(nn.Module):
-    def __init__(self, cat_weights, mcat_weights, mcat_ratio: float = 0.8,
+    def __init__(self, cat_weights, mcat_weights, mcat_ratio: float = 0.5,
         data_dir: str = '.data'):
         super().__init__()
         from utils import get_mcat_masks
@@ -25,11 +25,10 @@ class NestedBCELoss(nn.Module):
         return (1 - self.mcat_ratio) * cat_loss + self.mcat_ratio * mcat_loss
 
 def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
-    mcat_ratio: float = 0.9, data_dir: str = '.data', pbar_width: int = None):
+    mcat_ratio: float = 0.5, data_dir: str = '.data', pbar_width: int = None):
     from sklearn.metrics import f1_score
     import warnings
     from utils import get_mcat_masks, cats2mcats, get_class_weights
-    from inference import get_scores
 
     print(f'Training on {len(train_dl) * train_dl.batch_size:,d} samples '\
           f'and validating on {len(val_dl) * val_dl.batch_size:,d} samples.')
@@ -121,7 +120,7 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                         'model_type': type(model),
                         'params': model.params,
                         'state_dict': model.state_dict(),
-                        'scores': get_scores(model, val_dl, output_dict = True)
+                        'scores': model.evaluate(val_dl, output_dict = True)
                     }
                     model_fname = f'{model_type}_{val_cat_f1 * 100:.2f}_'\
                                   f'{epoch}.pt' 
