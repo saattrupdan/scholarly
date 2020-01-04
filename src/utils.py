@@ -35,20 +35,36 @@ def get_mcats(data_dir: str = '.data') -> list:
 
     return mcats
 
-def get_mcat_masks(data_dir: str = '.data'):
+def get_mcat_masks(data_dir: str = '.data') -> torch.FloatTensor:
     cats, mcats, mcat_dict = get_cats(), get_mcats(), get_mcat_dict()
     mcat2idx = {mcat:idx for idx, mcat in enumerate(mcats)}
     mcat_idxs = [mcat2idx[mcat] for mcat in mcats]
-    dup_cats = torch.LongTensor([mcat2idx[mcat_dict[cat]] for cat in cats])
-    return [dup_cats == mcat_idx for mcat_idx in mcat_idxs]
+    dup_cats = torch.FloatTensor([mcat2idx[mcat_dict[cat]] for cat in cats])
+    masks = torch.stack([dup_cats == mcat_idx for mcat_idx in mcat_idxs])
+    return masks
 
-def cats2mcats(pred, target, masks: list = None, data_dir: str = '.data'):
-    if masks is None:
-        masks = get_mcat_masks(data_dir = data_dir)
-    mpred = torch.stack([torch.sum((mask * pred) > 0, dim = 1).float()
-        for mask in masks], dim = 1)
-    mtarget = torch.stack([torch.max(mask * target, dim = 1).values.float()
-        for mask in masks], dim = 1)
+def apply_mask(x, masks: torch.FloatTensor = None):
+    stacked = torch.stack([x for _ in range(masks.shape[0])])
+    masked = masks.unsqueeze(1) * stacked
+    return masked
+
+def inverse_sigmoid(y, epsilon: float = 1e-12):
+    return -torch.log(1. / (y + epsilon) - 1.)
+
+def cats2mcats(pred: torch.FloatTensor, target: torch.FloatTensor, 
+    masks: torch.FloatTensor = None, data_dir: str = '.data'):
+    from functools import partial
+
+    if masks is None: masks = get_mcat_masks(data_dir = data_dir)
+
+    probs = torch.sigmoid(pred)
+    masked_probs = apply_mask(probs, masks = masks)
+    prod_probs = 1 - torch.prod(1 - torch.sort(masked_probs)[0][:, :, -2:], 
+        dim = 2)
+    mpred = inverse_sigmoid(prod_probs).permute(1, 0)
+
+    masked_target = apply_mask(target, masks = masks)
+    mtarget = torch.max(masked_target, dim = 2).values.permute(1, 0)
     return mpred, mtarget
 
 def get_class_weights(dl, pbar_width: int = None, data_dir: str = '.data'):
