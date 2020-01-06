@@ -74,6 +74,20 @@ class FCBlock(nn.Module):
             x = self.norm(x)
         return x
 
+class BiRNNBlock(nn.Module):
+    def __init__(self, in_dim: int, out_dim: int, normalise: bool = True,
+        nlayers: int = 1):
+        super().__init__()
+        self.rnn = nn.GRU(in_dim, out_dim, bidirectional = True, 
+            num_layers = nlayers)
+        self.norm = nn.LayerNorm(2 * out_dim) if normalise else None
+
+    def forward(self, x, h = None):
+        x, h = self.rnn(x, h)
+        if self.norm is not None:
+            x = self.norm(x)
+        return x, h
+
 class ConvBlock(nn.Module):
     def __init__(self, in_dim: int, out_dim: int, pool: bool = True,
         normalise: bool = True, nlayers: int = 1):
@@ -199,10 +213,11 @@ class SelfAttentionBlock(nn.Module):
 class SHARNN(Base):
     def __init__(self, **params):
         super().__init__(**params)
-        self.rnn = LayerNormGRU(params['emb_dim'], params['dim'], bias = True)
-        self.seq_attn = SelfAttentionBlock(2 * params['dim'])
-        self.proj = FCBlock(2 * params['dim'], self.ntargets)
-        self.cat_attn = SelfAttentionBlock(self.ntargets)
+        self.rnn = BiRNNBlock(params['emb_dim'], params['dim'],
+            normalise = True)
+        self.seq_attn = SelfAttentionBlock(2 * params['dim'], normalise = True)
+        self.proj = FCBlock(2 * params['dim'], self.ntargets, normalise = True)
+        self.cat_attn = SelfAttentionBlock(self.ntargets, normalise = False)
         #self.boom = BoomBlock(self.ntargets, params.get('boom_dim', 512))
 
     def forward(self, x):
