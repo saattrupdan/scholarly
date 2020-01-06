@@ -25,24 +25,20 @@ class BatchWrapper:
         return len(self.data_iter)
 
 def preprocess_data(
-    cats_fname: str = 'arxiv_data_cats', 
-    mcats_fname: str = 'arxiv_data_mcats', 
+    tsv_fname: str = 'arxiv_data', 
     txt_fname: str = 'preprocessed_docs.txt', 
     data_dir: str = '.data', 
     batch_size: int = 1000):
     ''' 
     Preprocess text data. This merges titles and abstracts and separates 
-    tokens by spaces. It saves this into a text file and also saves two
-    dataframes, one with all the categories and one with the master 
-    categories. Note that this function uses a constant amount of memory, 
-    which is achieved by working in batches and writing directly to the disk.
+    tokens by spaces. It saves this into a text file and also saves a
+    dataframe with all the categories. Note that this function uses a 
+    constant amount of memory, which is achieved by working in batches 
+    and writing directly to the disk.
     
     INPUT
-        cats_fname: str
+        tsv_fname: str
             The name of the tsv file containing all the categories, 
-            without file extension
-        mcats_fname: str
-            The name of the tsv file containing only the master categories, 
             without file extension
         txt_fname: str
             The name of the txt file containing the preprocessed texts
@@ -54,10 +50,8 @@ def preprocess_data(
     import spacy
 
     # Specify the input- and output paths
-    cats_in = get_path(data_dir) / (cats_fname + '.tsv')
-    mcats_in = get_path(data_dir) / (mcats_fname + '.tsv')
-    cats_out = get_path(data_dir) / (cats_fname + '_pp.tsv')
-    mcats_out = get_path(data_dir) / (mcats_fname + '_pp.tsv')
+    cats_in = get_path(data_dir) / (tsv_fname + '.tsv')
+    cats_out = get_path(data_dir) / (tsv_fname + '_pp.tsv')
     txt_path = get_path(data_dir) / 'preprocessed_docs.txt'
 
     # Load the English spaCy model used for tokenisation
@@ -78,18 +72,15 @@ def preprocess_data(
                 f.write(' '.join(tok.text for tok in doc) + '\n')
                 pbar.update()
 
-    # Add the preprocessed texts to the dataframe as the first column and
-    # save to disk
-    INS_OUTS = [(cats_in, cats_out), (mcats_in, mcats_out)]
-    with tqdm(INS_OUTS, desc = 'Storing the preprocessed texts') as pbar:
-        for (IN, OUT) in pbar:
-            df = pd.read_csv(IN, sep = '\t').dropna()
-            df.drop(columns = ['title', 'abstract'], inplace = True)
-            cats = df.columns.tolist()
-            with open(txt_path, 'r') as f:
-                df['text'] = f.readlines()
-            df = df[['text'] + cats]
-            df.to_csv(OUT, sep = '\t', index = False)
+    # Add the preprocessed texts to the dataframe as the first column 
+    # and save to disk
+    df = pd.read_csv(cats_in, sep = '\t').dropna()
+    df.drop(columns = ['title', 'abstract'], inplace = True)
+    cats = df.columns.tolist()
+    with open(txt_path, 'r') as f:
+        df['text'] = f.readlines()
+    df = df[['text'] + cats]
+    df.to_csv(cats_out, sep = '\t', index = False)
 
 def load_data(tsv_fname: str, data_dir: str = '.data', 
     batch_size: int = 32, split_ratio: float = 0.99, glove_emb_dim: int = 100,
@@ -194,20 +185,4 @@ def load_data(tsv_fname: str, data_dir: str = '.data',
 
 
 if __name__ == '__main__':
-
-    train_dl, val_dl, params = load_embed_data(
-        tsv_fname = 'arxiv_data_cats_pp_mini',
-        split_ratio = 0.9
-    )
-
-    for x, y in train_dl:
-        print('Train dataloader:', x.shape)
-        for z in y:
-            print(z.shape)
-        break
-
-    for x, y in val_dl:
-        print('Val dataloader:', x.shape)
-        for z in y:
-            print(z.shape)
-        break
+    preprocess_data(tsv_fname = 'arxiv_data')
