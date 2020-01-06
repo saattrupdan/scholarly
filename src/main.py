@@ -1,9 +1,30 @@
 def main(mcat_ratio: float = 0.5, epochs: int = 5, dim: int = 128, 
     model: str = 'sharnn', nlayers: int = 1) -> str:
-    from data import load_data
+    from data import load_data, preprocess_data
+    from db import ArXivDatabase
+    from utils import get_path
+
+    raw_fname = 'arxiv_data'
+    pp_path = get_path('.data') / f'{raw_fname}_pp.tsv'
+
+    if not pp_path.is_file():
+
+        raw_path = get_path('.data') / f'{raw_fname}.tsv'
+        cats_path = get_path('.data') / 'cats.json'
+        mcat_dict_path = get_path('.data') / 'mcat_dict.json'
+
+        if not (raw_path.is_file() and cats_path.is_file() and 
+            mcat_dict_path.is_file()):
+            db = ArXivDatabase()
+            db.get_mcat_dict()
+            db.get_cats()
+            if not raw_path.is_file():
+                db.get_training_df()
+
+        preprocess_data()
 
     train_dl, val_dl, params = load_data(
-        tsv_fname = 'arxiv_data_cats_pp_mini',
+        tsv_fname = f'{raw_fname}_pp',
         vectors = 'fasttext',
         batch_size = 32,
         split_ratio = 0.9
