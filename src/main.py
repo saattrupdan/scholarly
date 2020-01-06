@@ -67,8 +67,9 @@ if __name__ == '__main__':
     ap.add_argument('-d', '--dim', type = int, default = [128], nargs = '*')
     ap.add_argument('-m', '--model', default = 'sharnn', nargs = '*',
         type = str, choices = ['sharnn', 'logreg', 'cnn', 'mlp'])
-    ap.add_argument('-r', '--ratio', type = float, nargs = '+', 
-        choices = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
+    ap.add_argument('-r', '--ratio', type = float, nargs = '*', 
+        choices = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+        default = [0.2])
     args = vars(ap.parse_args())
 
     for model in args['model']:
