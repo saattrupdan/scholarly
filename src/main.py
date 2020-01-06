@@ -39,7 +39,6 @@ def main(mcat_ratio: float = 0.5, epochs: int = 5, dim: int = 128,
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
-    import numpy as np
 
     ap = ArgumentParser()
     ap.add_argument('-l', '--layers', type = int, default = [1], nargs = '*')

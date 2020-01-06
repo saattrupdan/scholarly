@@ -97,17 +97,62 @@ class ConvBlock(nn.Module):
             x = self.norm(x)
         return x
 
-class RNNBlock(nn.Module):
-    def __init__(self, in_dim: int, out_dim: int, normalise: bool = True):
-        super().__init__()
-        self.rnn = nn.GRU(in_dim, out_dim, bidirectional = True)
-        self.norm = nn.LayerNorm(2 * out_dim) if normalise else None
+class LayerNormGRUCell(nn.GRUCell):
+    def __init__(self, input_size: int, hidden_size: int, bias: bool = True):
+        super(LayerNormGRUCell, self).__init__(input_size, hidden_size, bias)
+        self.ln_ih = nn.LayerNorm(3 * hidden_size)
+        self.ln_hh = nn.LayerNorm(3 * hidden_size)
 
-    def forward(self, x, in_h = None):
-        x, out_h = self.rnn(x, in_h)
-        if self.norm is not None:
-            x = self.norm(x)
-        return x, out_h
+    def forward(self, input, hx = None):
+        self.check_forward_input(input)
+        if hx is None:
+            hx = torch.zeros(input.size(0), self.hidden_size, 
+                dtype = input.dtype, device = input.device)
+        self.check_forward_hidden(input, hx, '')
+
+        gi = self.ln_ih(torch.mm(input, self.weight_ih.t()) + self.bias_ih)
+        gh = self.ln_hh(torch.mm(hx, self.weight_hh.t()) + self.bias_hh)
+        i_r, i_i, i_n = gi.chunk(3, 1)
+        h_r, h_i, h_n = gh.chunk(3, 1)
+
+        resetgate = torch.sigmoid(i_r + h_r)
+        inputgate = torch.sigmoid(i_i + h_i)
+        newgate = torch.tanh(i_n + resetgate * h_n)
+        hy = newgate + inputgate * (hx - newgate)
+        return hy
+
+class LayerNormGRU(nn.Module):
+    def __init__(self, input_size: int, hidden_size: int, bias: bool = True):
+        super().__init__()
+        torch.autograd.set_detect_anomaly(True)
+        self.hidden_size = hidden_size
+        self.grucell_f = LayerNormGRUCell(input_size, hidden_size, bias)
+        self.grucell_b = LayerNormGRUCell(input_size, hidden_size, bias)
+
+    def forward(self, input, hx = None):
+        if hx is None:
+            hx = torch.zeros(input.size(1), self.hidden_size, 
+                dtype = input.dtype, device = input.device)
+
+        hs_f = torch.zeros(input.size(0), input.size(1), self.hidden_size,
+            dtype = input.dtype, device = input.device)
+        hs_b = torch.zeros(input.size(0), input.size(1), self.hidden_size,
+            dtype = input.dtype, device = input.device)
+
+        seq_len = input.size(0)
+        for t in range(seq_len):
+            xt = input[t, :, :]
+            hf_prev = hs_f[t - 1, :, :] if t != 0 else hx
+            hb_prev = hs_b[seq_len - t, :, :] if t != 0 else hx
+            hs_f[t, :, :] = self.grucell_f(xt, hf_prev)
+            hs_b[seq_len - t - 1, :, :] = self.grucell_f(xt, hb_prev)
+
+        last_f = hs_f[seq_len - 1, :, :]
+        last_b = hs_b[seq_len - 1, :, :]
+        h_last = torch.cat([last_f, last_b], dim = 1)
+        h_all = torch.cat([hs_f, hs_b], dim = 2)
+
+        return h_all, h_last
 
 class SelfAttentionBlock(nn.Module):
     def __init__(self, dim: int, normalise: bool = True):
@@ -154,7 +199,7 @@ class SelfAttentionBlock(nn.Module):
 class SHARNN(Base):
     def __init__(self, **params):
         super().__init__(**params)
-        self.rnn = RNNBlock(params['emb_dim'], params['dim'])
+        self.rnn = LayerNormGRU(params['emb_dim'], params['dim'], bias = True)
         self.seq_attn = SelfAttentionBlock(2 * params['dim'])
         self.proj = FCBlock(2 * params['dim'], self.ntargets)
         self.cat_attn = SelfAttentionBlock(self.ntargets)
