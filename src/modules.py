@@ -256,7 +256,8 @@ class MLP(Base):
 class CNN(Base):
     def __init__(self, **params):
         super().__init__(**params)
-        self.conv = ConvBlock(params['emb_dim'], params['dim'], nlayers = 2)
+        self.conv = ConvBlock(params['emb_dim'], params['dim'], 
+            nlayers = params.get('nlayers', 2))
         self.fc = FCBlock(params['dim'], params['dim'])
         self.out = nn.Linear(params['dim'], self.ntargets)
 
