@@ -18,15 +18,20 @@ class NestedBCELoss(nn.Module):
     def forward(self, pred: torch.Tensor, target: torch.Tensor) -> float:
         from utils import cats2mcats
         mpred, mtarget = cats2mcats(pred, target, masks = self.masks)
-        mcat_loss = F.binary_cross_entropy_with_logits(mpred, mtarget,
-            pos_weight = self.mcat_weights)
         cat_loss = F.binary_cross_entropy_with_logits(pred, target,
             pos_weight = self.cat_weights)
+        mcat_loss = F.binary_cross_entropy_with_logits(mpred, mtarget,
+            pos_weight = self.mcat_weights)
         return (1 - self.mcat_ratio) * cat_loss + self.mcat_ratio * mcat_loss
 
+    def cuda(self):
+        self.masks = self.masks.cuda()
+        self.cat_weights = self.cat_weights.cuda()
+        self.mcat_weights = self.mcat_weights.cuda()
+        return self
+
 def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
-    mcat_ratio: float = 0.5, data_dir: str = '.data', pbar_width: int = None,
-    gpu: bool = False):
+    mcat_ratio: float = 0.5, data_dir: str = '.data', pbar_width: int = None):
     from sklearn.metrics import f1_score
     import warnings
     from utils import get_mcat_masks, cats2mcats, get_class_weights
@@ -77,10 +82,10 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                         average = 'samples')
                     avg_cat_f1 = tot_cat_f1 / (idx + 1)
 
-                    my_hat, my_train = cats2mcats(y_hat.cpu(), y_train.cpu(), 
+                    my_hat, my_train = cats2mcats(y_hat, y_train, 
                         masks = mcat_masks)
                     mpreds = torch.sigmoid(my_hat)
-                    tot_mcat_f1 += f1_score(mpreds > 0.5, my_train, 
+                    tot_mcat_f1 += f1_score(mpreds.cpu() > 0.5, my_train.cpu(),
                         average = 'samples')
                     avg_mcat_f1 = tot_mcat_f1 / (idx + 1)
 
@@ -111,11 +116,11 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                         warnings.simplefilter('ignore')
                         val_cat_f1 += f1_score(preds.cpu() > 0.5, y_val.cpu(), 
                             average = 'samples')
-                        my_hat, my_val = cats2mcats(y_hat.cpu(), y_val.cpu(), 
+                        my_hat, my_val = cats2mcats(y_hat, y_val, 
                             masks = mcat_masks)
                         mpreds = torch.sigmoid(my_hat)
-                        val_mcat_f1 += f1_score(mpreds > 0.5, my_val, 
-                            average = 'samples')
+                        val_mcat_f1 += f1_score(mpreds.cpu() > 0.5, 
+                            my_val.cpu(), average = 'samples')
 
                     y_vals.append(y_val)
                     y_hats.append(preds > 0.5)

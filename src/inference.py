@@ -18,10 +18,17 @@ def evaluate(model, val_dl, output_dict: bool = False,
 
         y_vals, y_hats = [], []
         for x_val, y_val in val_dl:
+
+            if model.is_cuda():
+                x_val = x_val.cuda()
+                y_val = y_val.cuda()
+
             yhat = model(x_val)
             preds = torch.sigmoid(yhat) > 0.5
+
             y_vals.append(y_val.int())
             y_hats.append(preds.int())
+
         y_val = torch.cat(y_vals, dim = 0)
         y_hat = torch.cat(y_hats, dim = 0)
 
