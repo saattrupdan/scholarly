@@ -40,6 +40,10 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
     optimizer = optim.Adam(model.parameters(), lr = lr)
     mcat_masks = get_mcat_masks(data_dir = data_dir)
 
+    if model.is_cuda():
+        mcat_masks = mcat_masks.cuda()
+        criterion = criterion.cuda()
+
     best_score = 0
     for epoch in range(epochs):
         with tqdm(total = len(train_dl) * train_dl.batch_size, 
@@ -50,6 +54,10 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
             tot_cat_f1, avg_cat_f1, tot_mcat_f1, avg_mcat_f1 = 0, 0, 0, 0
             for idx, (x_train, y_train) in enumerate(train_dl):
                 optimizer.zero_grad()
+
+                if model.is_cuda():
+                    x_train = x_train.cuda()
+                    y_train = y_train.cuda()
 
                 y_hat = model(x_train)
                 preds = torch.sigmoid(y_hat)
@@ -64,11 +72,11 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore')
 
-                    tot_cat_f1 += f1_score(preds > 0.5, y_train, 
+                    tot_cat_f1 += f1_score(preds.cpu() > 0.5, y_train.cpu(), 
                         average = 'samples')
                     avg_cat_f1 = tot_cat_f1 / (idx + 1)
 
-                    my_hat, my_train = cats2mcats(y_hat, y_train, 
+                    my_hat, my_train = cats2mcats(y_hat.cpu(), y_train.cpu(), 
                         masks = mcat_masks)
                     mpreds = torch.sigmoid(my_hat)
                     tot_mcat_f1 += f1_score(mpreds > 0.5, my_train, 
@@ -84,17 +92,25 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
 
             with torch.no_grad():
                 model.eval()
+
                 val_loss, val_cat_f1, val_mcat_f1 = 0, 0, 0
                 y_vals, y_hats = [], []
                 for x_val, y_val in val_dl:
+
+                    if model.is_cuda():
+                        x_val = x_val.cuda()
+                        y_val = y_val.cuda()
+
                     y_hat = model(x_val)
                     preds = torch.sigmoid(y_hat)
+
                     val_loss += float(criterion(y_hat, y_val))
+
                     with warnings.catch_warnings():
                         warnings.simplefilter('ignore')
-                        val_cat_f1 += f1_score(preds > 0.5, y_val, 
+                        val_cat_f1 += f1_score(preds.cpu() > 0.5, y_val.cpu(), 
                             average = 'samples')
-                        my_hat, my_val = cats2mcats(y_hat, y_val, 
+                        my_hat, my_val = cats2mcats(y_hat.cpu(), y_val.cpu(), 
                             masks = mcat_masks)
                         mpreds = torch.sigmoid(my_hat)
                         val_mcat_f1 += f1_score(mpreds > 0.5, my_val, 

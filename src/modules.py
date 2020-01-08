@@ -18,10 +18,14 @@ class Base(nn.Module):
         self.embed = nn.Embedding(params['vocab_size'], params['emb_dim'])
         self.embed.weight = nn.Parameter(params['emb_matrix'], 
             requires_grad = False)
+        if params.get('gpu', False): self.cuda()
 
     def trainable_params(self):
         train_params = (p for p in self.parameters() if p.requires_grad)
         return sum(param.numel() for param in train_params)
+
+    def is_cuda(self):
+        return next(self.parameters()).is_cuda
 
     def evaluate(self, val_dl, output_dict: bool = False, 
         data_dir: str = '.data'):
