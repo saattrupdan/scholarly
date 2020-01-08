@@ -1,16 +1,16 @@
-def make_mini(from_fname: str, name: str, size: int, data_dir: str = '.data',
-    batch_size: int = 10000):
+def make_mini(from_fname: str = 'arxiv_data', name: str = 'mini', 
+    size: int = 100000, data_dir: str = '.data', batch_size: int = 10000):
     import pandas as pd
     import numpy as np
     from tqdm.auto import tqdm
     from utils import get_path, get_nrows, get_cats
 
-    from_path = get_path(data_dir) / f'{from_fname}.tsv'
-    to_path = get_path(data_dir) / f'{from_fname}_{name}.tsv'
+    from_path = get_path(data_dir) / f'{from_fname}_pp.tsv'
+    to_path = get_path(data_dir) / f'{from_fname}_{name}_pp.tsv'
 
     df = pd.read_csv(from_path, sep = '\t', chunksize = batch_size)
-    cats = get_cats(f'{from_fname}.tsv', data_dir = data_dir)
-    nrows = get_nrows(f'{from_fname}.tsv', data_dir = data_dir)
+    cats = get_cats(data_dir = data_dir)
+    nrows = get_nrows(f'{from_fname}_pp.tsv', data_dir = data_dir)
 
     text_path = get_path(data_dir) / 'text.tmp'
     labels_path = get_path(data_dir) / 'labels.tmp'
@@ -29,7 +29,7 @@ def make_mini(from_fname: str, name: str, size: int, data_dir: str = '.data',
         shape = (nrows, len(cats))
     )
 
-    with tqdm(total = nrows, desc = f'Loading {from_fname}.tsv') as pbar:
+    with tqdm(total = nrows, desc = f'Loading {from_fname}_pp.tsv') as pbar:
         for idx, row in enumerate(df):
             text[idx * batch_size: (idx + 1) * batch_size, 0] = row['text']
             labels[idx * batch_size: (idx + 1) * batch_size, :] = row[cats]
@@ -51,17 +51,11 @@ if __name__ == '__main__':
     from argparse import ArgumentParser
 
     ap = ArgumentParser()
-    ap.add_argument('-f', '--from', required = True)
-    ap.add_argument('-n', '--name', required = True)
-    ap.add_argument('-s', '--size', required = True)
-    ap.add_argument('-d', '--data-dir')
-    ap.add_argument('-b', '--batch-size')
+    ap.add_argument('-f', '--from_fname', default = 'arxiv_data')
+    ap.add_argument('-n', '--name', default = 'mini')
+    ap.add_argument('-s', '--size', type = int, default = 100000)
+    ap.add_argument('-d', '--data-dir', default = '.data')
+    ap.add_argument('-b', '--batch-size', type = int, default = 10000)
     args = vars(ap.parse_args())
 
-    make_mini(
-        from_fname = args['from'], 
-        name = args['name'], 
-        size = int(args['size']), 
-        data_dir = args.get('data-dir', '.data'),
-        batch_size = args.get('batch-size', 10000)
-    )
+    make_mini(**args)
