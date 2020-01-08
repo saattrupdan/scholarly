@@ -48,13 +48,16 @@ class Base(nn.Module):
         return train_model(self, **params)
 
 class BoomBlock(nn.Module):
-    def __init__(self, dim: int, boom_dim: int):
+    def __init__(self, dim: int, boom_dim: int, normalise: bool = True):
         super().__init__()
         self.boom_up = nn.Linear(dim, boom_dim)
+        self.norm = nn.LayerNorm(boom_dim) if normalise else None
         self.boom_down = nn.Linear(boom_dim, dim)
 
     def forward(self, inputs):
-        x = F.elu(self.boom_up(inputs))
+        x = F.gelu(self.boom_up(inputs))
+        if self.norm is not None:
+            x = self.norm(x)
         return inputs + self.boom_down(x)
 
 class FCBlock(nn.Module):
@@ -69,7 +72,7 @@ class FCBlock(nn.Module):
     
     def forward(self, x):
         for idx, fc in enumerate(self.fcs):
-            x = F.elu(fc(x)) + x if idx > 0 else F.elu(fc(x))
+            x = F.gelu(fc(x)) + x if idx > 0 else F.gelu(fc(x))
         if self.norm is not None:
             x = self.norm(x)
         return x
@@ -103,7 +106,7 @@ class ConvBlock(nn.Module):
     def forward(self, x):
         x = x.permute(1, 2, 0)
         for conv in self.convs:
-            x = F.elu(conv(x))
+            x = F.gelu(conv(x))
         if self.pool is not None:
             x = self.pool(x)
         x = x.permute(2, 0, 1)
@@ -136,6 +139,7 @@ class LayerNormGRUCell(nn.GRUCell):
         return hy
 
 class LayerNormGRU(nn.Module):
+    # Does not work at the moment, fails at backprop.
     def __init__(self, input_size: int, hidden_size: int, bias: bool = True):
         super().__init__()
         torch.autograd.set_detect_anomaly(True)
@@ -194,16 +198,12 @@ class SelfAttentionBlock(nn.Module):
         # -> (batch_size, seq_len, dim)
         mix = torch.bmm(weights, inputs)
 
-        # (batch_size, seq_len, dim) + (batch_size, seq_len, dim)
-        # -> (batch_size, seq_len, dim)
-        summed = mix + inputs
-
         if inputs.shape[2] == 1:
             # (batch_size, seq_len, dim) -> (batch_size, seq_len)
-            out = summed.squeeze()
+            out = mix.squeeze()
         else:
             # (batch_size, seq_len, dim) -> (seq_len, batch_size, dim)
-            out = summed.permute(1, 0, 2)
+            out = mix.permute(1, 0, 2)
 
         if self.norm is not None:
             out = self.norm(out)
@@ -214,20 +214,21 @@ class SHARNN(Base):
     def __init__(self, **params):
         super().__init__(**params)
         self.rnn = BiRNNBlock(params['emb_dim'], params['dim'],
-            normalise = True)
+            normalise = True, nlayers = params['nlayers'])
         self.seq_attn = SelfAttentionBlock(2 * params['dim'], normalise = True)
         self.proj = FCBlock(2 * params['dim'], self.ntargets, normalise = True)
         self.cat_attn = SelfAttentionBlock(self.ntargets, normalise = False)
-        #self.boom = BoomBlock(self.ntargets, params.get('boom_dim', 512))
+        self.boom = BoomBlock(self.ntargets, params.get('boom_dim', 512),
+            normalise = True)
 
     def forward(self, x):
         x = self.embed(x)
         x, _ = self.rnn(x)
         x = self.seq_attn(x)
-        x = torch.mean(x, dim = 0)
+        x = torch.sum(x, dim = 0)
         x = self.proj(x)
-        x = self.cat_attn(x)
-        #x = self.boom(x)
+        x = x + self.cat_attn(x)
+        x = self.boom(x)
         return x
 
 class LogisticRegression(Base):
@@ -257,8 +258,8 @@ class CNN(Base):
     def __init__(self, **params):
         super().__init__(**params)
         self.conv = ConvBlock(params['emb_dim'], params['dim'], 
-            nlayers = params.get('nlayers', 2))
-        self.fc = FCBlock(params['dim'], params['dim'])
+            nlayers = params.get('nlayers', 2), normalise = True)
+        self.fc = FCBlock(params['dim'], params['dim'], normalise = True)
         self.out = nn.Linear(params['dim'], self.ntargets)
 
     def forward(self, x):
@@ -267,6 +268,26 @@ class CNN(Base):
         x = self.fc(x)
         x = torch.mean(x, dim = 0)
         return self.out(x)
+
+class ConvRNN(Base):
+    def __init__(self, **params):
+        super().__init__(**params)
+        self.conv = ConvBlock(params['emb_dim'], params['dim'], 
+            nlayers = params.get('nlayers', 2), normalise = True)
+        self.rnn = BiRNNBlock(params['dim'], params['dim'],  normalise = True)
+        self.seq_attn = SelfAttentionBlock(2 * params['dim'], normalise = True)
+        self.proj = FCBlock(2 * params['dim'], self.ntargets, normalise = True)
+        self.cat_attn = SelfAttentionBlock(self.ntargets, normalise = False)
+
+    def forward(self, x):
+        x = self.embed(x)
+        x = self.conv(x)
+        x, _ = self.rnn(x)
+        x = self.seq_attn(x)
+        x = torch.mean(x, dim = 0)
+        x = self.proj(x)
+        x = self.cat_attn(x)
+        return x
 
 
 if __name__ == '__main__':
