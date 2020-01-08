@@ -47,7 +47,8 @@ class Base(nn.Module):
             'lr': lr,
             'mcat_ratio': mcat_ratio,
             'data_dir': data_dir,
-            'pbar_width': pbar_width
+            'pbar_width': pbar_width,
+            'gpu': self.is_cuda()
         }
         return train_model(self, **params)
 

@@ -25,7 +25,8 @@ class NestedBCELoss(nn.Module):
         return (1 - self.mcat_ratio) * cat_loss + self.mcat_ratio * mcat_loss
 
 def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
-    mcat_ratio: float = 0.5, data_dir: str = '.data', pbar_width: int = None):
+    mcat_ratio: float = 0.5, data_dir: str = '.data', pbar_width: int = None,
+    gpu: bool = False):
     from sklearn.metrics import f1_score
     import warnings
     from utils import get_mcat_masks, cats2mcats, get_class_weights
