@@ -46,8 +46,7 @@ def get_mcat_masks(data_dir: str = '.data') -> torch.FloatTensor:
 
 def apply_mask(x, masks: torch.FloatTensor = None):
     stacked = torch.stack([x for _ in range(masks.shape[0])])
-    masked = masks.unsqueeze(1) * stacked
-    return masked
+    return masks.unsqueeze(1) * stacked
 
 def inverse_sigmoid(y, epsilon: float = 1e-12):
     return -torch.log(1. / (y + epsilon) - 1.)
@@ -60,7 +59,8 @@ def cats2mcats(pred: torch.FloatTensor, target: torch.FloatTensor,
 
     probs = torch.sigmoid(pred)
     masked_probs = apply_mask(probs, masks = masks)
-    tops_removed = masked_probs.where(masked_probs < 0.9, torch.full_like(masked_probs, 0.9))
+    tops_removed = masked_probs.where(masked_probs < 0.9, 
+        torch.full_like(masked_probs, 0.9))
     prod_probs = 1 - torch.prod(1 - torch.sort(tops_removed)[0][:, :, -2:], 
         dim = 2)
     mpred = inverse_sigmoid(prod_probs).permute(1, 0)
