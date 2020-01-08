@@ -40,7 +40,7 @@ def get_mcat_masks(data_dir: str = '.data') -> torch.FloatTensor:
     mcat2idx = {mcat:idx for idx, mcat in enumerate(mcats)}
     mcat_idxs = [mcat2idx[mcat] for mcat in mcats]
     dup_cats = torch.FloatTensor([mcat2idx[mcat_dict[cat]] for cat in cats])
-    masks = torch.stack([dup_cats == mcat_idx for mcat_idx in mcat_idxs])
+    masks = torch.stack([(dup_cats == mcat_idx).float() for mcat_idx in mcat_idxs])
     return masks
 
 def apply_mask(x, masks: torch.FloatTensor = None):
@@ -59,7 +59,8 @@ def cats2mcats(pred: torch.FloatTensor, target: torch.FloatTensor,
 
     probs = torch.sigmoid(pred)
     masked_probs = apply_mask(probs, masks = masks)
-    prod_probs = 1 - torch.prod(1 - torch.sort(masked_probs)[0][:, :, -2:], 
+    tops_removed = masked_probs.where(masked_probs < 0.9, torch.full_like(masked_probs, 0.9))
+    prod_probs = 1 - torch.prod(1 - torch.sort(tops_removed)[0][:, :, -2:], 
         dim = 2)
     mpred = inverse_sigmoid(prod_probs).permute(1, 0)
 
