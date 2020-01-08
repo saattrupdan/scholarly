@@ -40,7 +40,8 @@ def get_mcat_masks(data_dir: str = '.data') -> torch.FloatTensor:
     mcat2idx = {mcat:idx for idx, mcat in enumerate(mcats)}
     mcat_idxs = [mcat2idx[mcat] for mcat in mcats]
     dup_cats = torch.FloatTensor([mcat2idx[mcat_dict[cat]] for cat in cats])
-    masks = torch.stack([(dup_cats == mcat_idx).float() for mcat_idx in mcat_idxs])
+    masks = torch.stack([(dup_cats == mcat_idx).float() 
+        for mcat_idx in mcat_idxs])
     return masks
 
 def apply_mask(x, masks: torch.FloatTensor = None):

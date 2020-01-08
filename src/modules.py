@@ -23,6 +23,9 @@ class Base(nn.Module):
         train_params = (p for p in self.parameters() if p.requires_grad)
         return sum(param.numel() for param in train_params)
 
+    def is_cuda(self):
+        return next(self.parameters()).is_cuda
+
     def evaluate(self, val_dl, output_dict: bool = False, 
         data_dir: str = '.data'):
         from inference import evaluate
@@ -43,7 +46,8 @@ class Base(nn.Module):
             'lr': lr,
             'mcat_ratio': mcat_ratio,
             'data_dir': data_dir,
-            'pbar_width': pbar_width
+            'pbar_width': pbar_width,
+            'gpu': self.is_cuda()
         }
         return train_model(self, **params)
 
