@@ -74,7 +74,7 @@ if __name__ == '__main__':
         choices = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
         default = [0.5])
     ap.add_argument('-f', '--fname', nargs = '*', default = ['arxiv_data'])
-    ap.add_argument('-g', '--fname', type = bool, default = False)
+    ap.add_argument('-g', '--gpu', type = bool, default = False)
     args = vars(ap.parse_args())
 
     for model in args['model']:

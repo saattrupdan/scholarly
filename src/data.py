@@ -84,7 +84,7 @@ def preprocess_data(
 
 def load_data(tsv_fname: str, data_dir: str = '.data', 
     batch_size: int = 32, split_ratio: float = 0.99, glove_emb_dim: int = 100,
-    random_seed: int = 42, vectors: str = 'fasttext'):
+    random_seed: int = 42, vectors: str = 'fasttext') -> tuple:
     ''' 
     Loads the preprocessed data, tokenises it, builds a vocabulary,
     splits into a training- and validation set, numeralises the texts,
