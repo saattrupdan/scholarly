@@ -6,7 +6,8 @@ from tqdm.auto import tqdm
 from utils import get_path
 
 class NestedBCELoss(nn.Module):
-    def __init__(self, cat_weights, mcat_weights, mcat_ratio: float = 0.5,
+    def __init__(self, cat_weights: torch.FloatTensor, 
+        mcat_weights: torch.FloatTensor, mcat_ratio: float = 0.5,
         data_dir: str = '.data'):
         super().__init__()
         from utils import get_mcat_masks
