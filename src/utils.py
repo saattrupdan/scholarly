@@ -45,11 +45,11 @@ def get_mcat_masks(data_dir: str = '.data') -> torch.FloatTensor:
     return masks
 
 def apply_mask(x, masks: torch.FloatTensor = None):
-    stacked = torch.stack([x for _ in range(masks.shape[0])])
+    stacked = torch.stack([x for _ in range(masks.shape[0])], dim = 0)
     return masks.unsqueeze(1) * stacked
 
-def inverse_sigmoid(y, epsilon: float = 1e-12):
-    return -torch.log(1. / (y + epsilon) - 1.)
+def inverse_sigmoid(y, epsilon: float = 1e-7):
+    return torch.log(y / (1. - y + epsilon))
 
 def cats2mcats(pred: torch.FloatTensor, target: torch.FloatTensor, 
     masks: torch.FloatTensor = None, data_dir: str = '.data'):
@@ -59,10 +59,8 @@ def cats2mcats(pred: torch.FloatTensor, target: torch.FloatTensor,
 
     probs = torch.sigmoid(pred)
     masked_probs = apply_mask(probs, masks = masks)
-    tops_removed = masked_probs.where(masked_probs < 0.9, 
-        torch.full_like(masked_probs, 0.9))
-    prod_probs = 1 - torch.prod(1 - torch.sort(tops_removed)[0][:, :, -2:], 
-        dim = 2)
+    top3_probs = torch.sort(masked_probs)[0][:, :, -3:]
+    prod_probs = 1 - torch.prod(1 - top3_probs, dim = 2)
     mpred = inverse_sigmoid(prod_probs).permute(1, 0)
 
     masked_target = apply_mask(target, masks = masks)
@@ -80,12 +78,16 @@ def get_class_weights(dl, pbar_width: int = None, data_dir: str = '.data'):
             else:
                 counts += torch.sum(y, dim = 0)
             pbar.update(dl.batch_size)
-        cat_weights = torch.max(counts) / counts
+
+        # Adding 1 to avoid zero division
+        cat_weights = torch.max(counts) / (counts + 1)
 
     mcat_masks = get_mcat_masks()
     mcat_counts = [torch.sum(counts * mask) for mask in mcat_masks]
     mcat_counts = torch.FloatTensor(mcat_counts)
-    mcat_weights = torch.max(mcat_counts) / mcat_counts
+
+    # Adding 1 to avoid zero division
+    mcat_weights = torch.max(mcat_counts) / (mcat_counts + 1)
     return {'cat_weights': cat_weights, 'mcat_weights': mcat_weights}
 
 
