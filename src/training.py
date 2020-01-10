@@ -23,6 +23,15 @@ class NestedBCELoss(nn.Module):
             pos_weight = self.cat_weights)
         mcat_loss = F.binary_cross_entropy_with_logits(mpred, mtarget,
             pos_weight = self.mcat_weights)
+
+        if torch.isnan(cat_loss).any() or torch.isnan(mcat_loss).any():
+            print('cat_loss =', cat_loss)
+            print('mcat_loss =', mcat_loss)
+            print('mpred =', mpred)
+            print('mtarget =', mtarget)
+            print('pred =', pred)
+            print('target =', target)
+
         return (1 - self.mcat_ratio) * cat_loss + self.mcat_ratio * mcat_loss
 
     def cuda(self):
