@@ -55,7 +55,7 @@ def mix_logits(x, y):
     ''' Numerically stable version of 
             1 - \sigma^{-1}([1 - \sigma(x)][1 - \sigma(y)])
     '''
-    return x + y - torch.log(1 + torch.exp(x) + torch.exp(y))
+    return x + y + torch.log(1 + torch.exp(-x) + torch.exp(-y))
 
 def cats2mcats(pred: torch.FloatTensor, target: torch.FloatTensor, 
     masks: torch.FloatTensor = None, data_dir: str = '.data'):
