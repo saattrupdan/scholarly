@@ -41,14 +41,21 @@ class NestedBCELoss(nn.Module):
         return self
 
 def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
-    mcat_ratio: float = 0.5, data_dir: str = '.data', pbar_width: int = None):
+    mcat_ratio: float = 0.5, data_dir: str = '.data', pbar_width: int = None,
+    ema: float = 0.9):
     from sklearn.metrics import f1_score
     import warnings
+    import wandb
+    from pathlib import Path
     from utils import get_mcat_masks, cats2mcats, get_class_weights
 
     print(f'Training on {len(train_dl) * train_dl.batch_size:,d} samples '\
           f'and validating on {len(val_dl) * val_dl.batch_size:,d} samples.')
     print(f'Number of trainable parameters: {model.trainable_params():,d}')
+
+    # Sign into wandb and log metrics from model
+    wandb.init(project = 'scholarly')
+    wandb.watch(model)
 
     weights = get_class_weights(train_dl, pbar_width = pbar_width)
     criterion = NestedBCELoss(**weights, mcat_ratio = mcat_ratio, 
@@ -60,14 +67,13 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
         mcat_masks = mcat_masks.cuda()
         criterion = criterion.cuda()
 
-    best_score = 0
+    best_score, niterations = 0, 0
+    avg_loss, avg_cat_f1, avg_mcat_f1 = 0, 0, 0
     for epoch in range(epochs):
         with tqdm(total = len(train_dl) * train_dl.batch_size, 
             ncols = pbar_width) as pbar:
             model.train()
 
-            tot_loss, avg_loss = 0, 0
-            tot_cat_f1, avg_cat_f1, tot_mcat_f1, avg_mcat_f1 = 0, 0, 0, 0
             for idx, (x_train, y_train) in enumerate(train_dl):
                 optimizer.zero_grad()
 
@@ -75,30 +81,47 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                     x_train = x_train.cuda()
                     y_train = y_train.cuda()
 
+                # Get cat predictions
                 y_hat = model(x_train)
                 preds = torch.sigmoid(y_hat)
 
+                # Get master cat predictions
+                my_hat, my_train = cats2mcats(y_hat, y_train, 
+                    masks = mcat_masks)
+                mpreds = torch.sigmoid(my_hat)
+
+                # Calculate loss and perform backprop
                 loss = criterion(y_hat, y_train)
                 loss.backward()
                 optimizer.step()
 
-                tot_loss += float(loss)
-                avg_loss = tot_loss / (idx + 1)
-
+                # Compute f1 scores
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore')
-
-                    tot_cat_f1 += f1_score(preds.cpu() > 0.5, y_train.cpu(), 
+                    cat_f1 = f1_score(preds.cpu() > 0.5, y_train.cpu(), 
                         average = 'samples')
-                    avg_cat_f1 = tot_cat_f1 / (idx + 1)
-
-                    my_hat, my_train = cats2mcats(y_hat, y_train, 
-                        masks = mcat_masks)
-                    mpreds = torch.sigmoid(my_hat)
-                    tot_mcat_f1 += f1_score(mpreds.cpu() > 0.5, my_train.cpu(),
+                    mcat_f1 = f1_score(mpreds.cpu() > 0.5, my_train.cpu(),
                         average = 'samples')
-                    avg_mcat_f1 = tot_mcat_f1 / (idx + 1)
 
+                # Keep track of the number of iterations, for ema bias
+                niterations += train_dl.batch_size
+
+                # Exponentially moving average of loss and f1 scores
+                avg_loss = ema * avg_loss + (1 - ema) * float(loss)
+                avg_loss /= 1 - ema ** niterations
+                avg_cat_f1 = ema * avg_cat_f1 + (1 - ema) * float(cat_f1)
+                avg_cat_f1 /= 1 - ema ** niterations
+                avg_mcat_f1 = ema * avg_mcat_f1 + (1-ema) * float(mcat_f1)
+                avg_mcat_f1 /= 1 - ema ** niterations
+
+                # Log wandb
+                wandb.log({
+                    'loss': avg_loss, 
+                    'cat f1': avg_cat_f1,
+                    'mcat f1': avg_mcat_f1
+                })
+
+                # Update the progress bar
                 desc = f'Epoch {epoch:2d} - '\
                        f'loss {avg_loss:.4f} - '\
                        f'cat f1 {avg_cat_f1:.4f} - '\
@@ -106,6 +129,7 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                 pbar.set_description(desc)
                 pbar.update(train_dl.batch_size)
 
+            # Compute validation scores
             with torch.no_grad():
                 model.eval()
 
@@ -117,31 +141,48 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                         x_val = x_val.cuda()
                         y_val = y_val.cuda()
 
+                    # Get cat predictions
                     y_hat = model(x_val)
                     preds = torch.sigmoid(y_hat)
 
+                    # Get mcat predictions
+                    my_hat, my_val = cats2mcats(y_hat, y_val, 
+                        masks = mcat_masks)
+                    mpreds = torch.sigmoid(my_hat)
+
+                    # Collect the true and predicted labels
+                    y_vals.append(y_val)
+                    y_hats.append(preds > 0.5)
+
+                    # Accumulate loss
                     val_loss += float(criterion(y_hat, y_val))
 
+                    # Accumulate f1 scores
                     with warnings.catch_warnings():
                         warnings.simplefilter('ignore')
                         val_cat_f1 += f1_score(preds.cpu() > 0.5, y_val.cpu(), 
                             average = 'samples')
-                        my_hat, my_val = cats2mcats(y_hat, y_val, 
-                            masks = mcat_masks)
-                        mpreds = torch.sigmoid(my_hat)
                         val_mcat_f1 += f1_score(mpreds.cpu() > 0.5, 
                             my_val.cpu(), average = 'samples')
 
-                    y_vals.append(y_val)
-                    y_hats.append(preds > 0.5)
-
+                # Concatenate the true and predicted labels
                 y_val = torch.cat(y_vals, dim = 0)
                 y_hat = torch.cat(y_hats, dim = 0)
 
+                # Compute the average loss and f1 scores
                 val_loss /= len(val_dl)
                 val_cat_f1 /= len(val_dl)
                 val_mcat_f1 /= len(val_dl)
 
+                # Log wandb
+                wandb.log({
+                    'val loss': val_loss, 
+                    'val cat f1': val_cat_f1,
+                    'val mcat f1': val_mcat_f1
+                })
+
+                # If the current cat f1 score is the best so far, then
+                # replace the stored model with the current one
                 if val_cat_f1 > best_score:
                     best_score = val_cat_f1
                     model_type = type(model).__name__
@@ -161,6 +202,7 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                         warnings.simplefilter('ignore')
                         torch.save(data, get_path(data_dir) / model_fname)
 
+                # Update progress bar
                 desc = f'Epoch {epoch:2d} - '\
                        f'loss {avg_loss:.4f} - '\
                        f'cat f1 {avg_cat_f1:.4f} - '\
@@ -169,7 +211,9 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                        f'val cat f1 {val_cat_f1:.4f} - '\
                        f'val mcat f1 {val_mcat_f1:.4f}'
                 pbar.set_description(desc)
-                
+
+    # Save the model's state dict to wandb directory
+    torch.save(model.state_dict(), Path(wandb.run.dir) / 'model.pt')
     return model
 
 
