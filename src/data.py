@@ -8,11 +8,11 @@ from utils import get_path
 
 class BatchWrapper:
     ''' Wrap a torchtext data iterator. '''
-    def __init__(self, data_iter, data_dir: str = '.data'):
-        from utils import get_cats
+    def __init__(self, data_iter, vectors: str, cats: list):
         self.data_iter = data_iter
         self.batch_size = data_iter.batch_size
-        self.cats = get_cats(data_dir = data_dir)
+        self.vectors = vectors
+        self.cats = cats
 
     def __iter__(self):
         for batch in self.data_iter:
@@ -83,7 +83,7 @@ def preprocess_data(
     df.to_csv(cats_out, sep = '\t', index = False)
 
 def load_data(tsv_fname: str, data_dir: str = '.data', 
-    batch_size: int = 32, split_ratio: float = 0.99, glove_emb_dim: int = 100,
+    batch_size: int = 32, split_ratio: float = 0.95,
     random_seed: int = 42, vectors: str = 'fasttext') -> tuple:
     ''' 
     Loads the preprocessed data, tokenises it, builds a vocabulary,
@@ -98,15 +98,12 @@ def load_data(tsv_fname: str, data_dir: str = '.data',
             The data directory
         batch_size: int = 32,
             The size of each batch
-        split_ratio: float = 0.99
+        split_ratio: float = 0.95
             The proportion of the dataset reserved for training
         vectors: {'fasttext', 'glove'} = 'fasttext'
             The type of word vectors to use. Here the FastText vectors are
             trained on the abstracts and the GloVe vectors are pretrained
             on the 6B corpus
-        glove_emb_dim: {50, 100, 200, 300} = 100
-            The dimension of the GloVe word vectors. Only relevant if
-            <vectors> = 'glove'.
         random_seed: int = 42
             A random seed to ensure that the same training/validation split
             is achieved every time. If set to None then no seed is used.
@@ -118,9 +115,7 @@ def load_data(tsv_fname: str, data_dir: str = '.data',
             vocab_size
                 The size of the vocabulary
             emb_dim
-                The dimension of the word vectors. Will be equal to
-                <glove_emb_dim> if <vectors> = 'glove', and otherwise
-                set to 100
+                The dimension of the word vectors
             emb_matrix
                 The embedding matrix containing the word vectors
     '''
@@ -154,12 +149,16 @@ def load_data(tsv_fname: str, data_dir: str = '.data',
             random_state = random.getstate()
         )
 
-    # Build the vocabulary of the training set
+    # Get the word vectors
     vector_cache = get_path(data_dir)
-    if vectors == 'glove':
-        vecs = vocab.GloVe('6B', dim = glove_emb_dim, cache = vector_cache)
-    elif vectors == 'fasttext':
-        vecs = vocab.Vectors('fasttext', cache = vector_cache)
+    base_url = 'https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data/'
+    vecs = vocab.Vectors(
+        name = vectors, 
+        cache = vector_cache, 
+        url = base_url + vectors
+    )
+
+    # Build the vocabulary of the training set
     TXT.build_vocab(train, vectors = vecs)
 
     # Numericalise the texts, batch them into batches of similar text
@@ -171,12 +170,12 @@ def load_data(tsv_fname: str, data_dir: str = '.data',
     )
 
     # Wrap the iterators to ensure that we output tensors
-    train_dl = BatchWrapper(train_iter)
-    val_dl = BatchWrapper(val_iter)
+    train_dl = BatchWrapper(train_iter, vectors = vectors, cats = cats)
+    val_dl = BatchWrapper(val_iter, vectors = vectors, cats = cats)
 
     params = {
         'vocab_size': len(TXT.vocab),
-        'emb_dim': glove_emb_dim if vectors == 'glove' else 100,
+        'emb_dim': 100,
         'emb_matrix': TXT.vocab.vectors
     }
 
