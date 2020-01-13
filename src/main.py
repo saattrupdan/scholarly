@@ -1,20 +1,19 @@
-def main(mcat_ratio: float = 0.5, epochs: int = 5, dim: int = 128, 
-    model: str = 'sharnn', nlayers: int = 1, fname: str = 'arxiv_data',
-    gpu: bool = False) -> str:
-    from data import load_data, preprocess_data
-    from db import ArXivDatabase
+def main(mcat_ratio: float, epochs: int, dim: int, model: str, 
+    nlayers: int, fname: str, gpu: bool, name: str, lr: float,
+    batch_size: int, split_ratio: float, vectors: str) -> str:
+    from data import load_data
     from utils import get_path
 
     pp_path = get_path('.data') / f'{fname}_pp.tsv'
-
     if not pp_path.is_file():
-
+        from data import preprocess_data
         raw_path = get_path('.data') / f'{fname}.tsv'
         cats_path = get_path('.data') / 'cats.json'
         mcat_dict_path = get_path('.data') / 'mcat_dict.json'
 
-        if not (raw_path.is_file() and cats_path.is_file() and 
+        if not (raw_path.is_file() and cats_path.is_file() and
             mcat_dict_path.is_file()):
+            from db import ArXivDatabase
             db = ArXivDatabase()
             db.get_mcat_dict()
             db.get_cats()
@@ -25,9 +24,9 @@ def main(mcat_ratio: float = 0.5, epochs: int = 5, dim: int = 128,
 
     train_dl, val_dl, params = load_data(
         tsv_fname = f'{fname}_pp',
-        vectors = 'fasttext',
-        batch_size = 32,
-        split_ratio = 0.95
+        batch_size = batch_size,
+        split_ratio = split_ratio,
+        vectors = vectors
     )
 
     if model == 'logreg':
@@ -46,17 +45,16 @@ def main(mcat_ratio: float = 0.5, epochs: int = 5, dim: int = 128,
         from modules import ConvRNN
         model = ConvRNN
     else:
-        raise RuntimeError('Invalid model, please choose between '\
-                           '"logreg", "mlp", "cnn", "sharnn" and "convrnn".')
+        raise RuntimeError('Invalid model name.')
 
-    print(f'Training {model.__name__} with dimension {dim} and {nlayers} '\
-          f'layer(s), for {epochs} epoch(s) with mcat ratio {mcat_ratio}.')
+    model = model(dim = dim, nlayers = nlayers, **params)
+    if gpu: model.cuda()
 
-    model = model(dim = dim, nlayers = nlayers, gpu = gpu, **params)
     model = model.fit(train_dl, val_dl, 
         epochs = epochs, 
-        lr = 3e-4,
-        mcat_ratio = mcat_ratio
+        lr = lr,
+        mcat_ratio = mcat_ratio,
+        name = name 
     )
 
     return model.evaluate(val_dl)
@@ -64,32 +62,20 @@ def main(mcat_ratio: float = 0.5, epochs: int = 5, dim: int = 128,
 if __name__ == '__main__':
     from argparse import ArgumentParser
 
-    ap = ArgumentParser()
-    ap.add_argument('-l', '--layers', type = int, default = [1], nargs = '*')
-    ap.add_argument('-e', '--epochs', type = int, default = [5], nargs = '*')
-    ap.add_argument('-d', '--dim', type = int, default = [256], nargs = '*')
-    ap.add_argument('-m', '--model', default = 'sharnn', nargs = '*',
+    parser = ArgumentParser()
+    parser.add_argument('--name', default = 'no_name')
+    parser.add_argument('--batch_size', type = int, default = 32)
+    parser.add_argument('--split_ratio', type = float, default = 0.95)
+    parser.add_argument('--lr', type = float, default = 3e-4)
+    parser.add_argument('--nlayers', type = int, default = 1)
+    parser.add_argument('--epochs', type = int, default = 5)
+    parser.add_argument('--dim', type = int, default = 256)
+    parser.add_argument('--mcat_ratio', type = float,  default = 0.1)
+    parser.add_argument('--fname', default = 'arxiv_data')
+    parser.add_argument('--gpu', type = bool, default = False)
+    parser.add_argument('--model', default = 'sharnn',
         choices = ['sharnn', 'logreg', 'cnn', 'mlp', 'convrnn'])
-    ap.add_argument('-r', '--ratio', type = float, nargs = '*', 
-        choices = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-        default = [0.5])
-    ap.add_argument('-f', '--fname', nargs = '*', default = ['arxiv_data'])
-    ap.add_argument('-g', '--gpu', type = bool, default = False)
-    args = vars(ap.parse_args())
+    parser.add_argument('--vectors', default = 'fasttext', 
+        choices = ['fasttext', 'glove'])
 
-    for model in args['model']:
-        for ratio in args['ratio']:
-            for epochs in args['epochs']:
-                for dim in args['dim']:
-                    for layers in args['layers']:
-                        for fname in args['fname']:
-                            scores = main(
-                                model = model,
-                                mcat_ratio = ratio,
-                                epochs = epochs,
-                                dim = dim,
-                                nlayers = layers,
-                                fname = fname,
-                                gpu = args['gpu']
-                            )
-                            print(scores)
+    print(main(**vars(parser.parse_args())))
