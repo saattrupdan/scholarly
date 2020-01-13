@@ -18,7 +18,6 @@ class Base(nn.Module):
         self.embed = nn.Embedding(params['vocab_size'], params['emb_dim'])
         self.embed.weight = nn.Parameter(params['emb_matrix'], 
             requires_grad = False)
-        if params.get('gpu', False): self.cuda()
 
     def trainable_params(self):
         train_params = (p for p in self.parameters() if p.requires_grad)
@@ -27,29 +26,17 @@ class Base(nn.Module):
     def is_cuda(self):
         return next(self.parameters()).is_cuda
 
-    def evaluate(self, val_dl, output_dict: bool = False, 
-        data_dir: str = '.data'):
+    def evaluate(self, *args, **kwargs):
         from inference import evaluate
-        return evaluate(self, val_dl, output_dict, data_dir)
+        return evaluate(self, *args, **kwargs)
 
-    def predict(self, title: str, abstract: str):
+    def predict(self, *args, **kwargs):
         from inference import predict
-        return predict(self, title, abstract)
+        return predict(self, *args, **kwargs)
 
-    def fit(self, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
-        mcat_ratio: float = 0.5, data_dir: str = '.data', 
-        pbar_width: int = None):
+    def fit(self, *args, **kwargs):
         from training import train_model
-        params = {
-            'train_dl': train_dl,
-            'val_dl': val_dl,
-            'epochs': epochs,
-            'lr': lr,
-            'mcat_ratio': mcat_ratio,
-            'data_dir': data_dir,
-            'pbar_width': pbar_width
-        }
-        return train_model(self, **params)
+        return train_model(self, *args, **kwargs)
 
 class BoomBlock(nn.Module):
     def __init__(self, dim: int, boom_dim: int, normalise: bool = True):
@@ -179,8 +166,8 @@ class LayerNormGRU(nn.Module):
 class SelfAttentionBlock(nn.Module):
     def __init__(self, dim: int, normalise: bool = True):
         super().__init__()
-        import math
-        self.sqrt_dim = math.sqrt(dim)
+        self.sqrt_dim = torch.sqrt(nn.Parameter(torch.FloatTensor([dim]), 
+            requires_grad = False))
         self.norm = nn.LayerNorm(dim) if normalise else None
 
     def forward(self, inputs):
@@ -189,20 +176,21 @@ class SelfAttentionBlock(nn.Module):
             # Treat dim as the sequence length to make sense of the
             # matrix multiplications, and set dim = 1
             # (batch_size, seq_len) -> (batch_size, seq_len, dim)
-            inputs = inputs.unsqueeze(2)
+            reshaped_inputs = inputs.unsqueeze(2)
         else:
             # (seq_len, batch_size, dim) -> (batch_size, seq_len, dim)
-            inputs = inputs.permute(1, 0, 2)
+            reshaped_inputs = inputs.permute(1, 0, 2)
 
         # (batch_size, seq_len, dim) -> (batch_size, seq_len, seq_len)
-        scores = torch.bmm(inputs, inputs.permute(0, 2, 1)) / self.sqrt_dim
+        scores = torch.bmm(reshaped_inputs, reshaped_inputs.permute(0, 2, 1))
+        scores /= self.sqrt_dim
         weights = F.softmax(scores, dim = -1)
 
         # (batch_size, seq_len, seq_len) x (batch_size, seq_len, dim)
         # -> (batch_size, seq_len, dim)
-        mix = torch.bmm(weights, inputs)
+        mix = torch.bmm(weights, reshaped_inputs)
 
-        if inputs.shape[2] == 1:
+        if len(inputs.shape) == 2:
             # (batch_size, seq_len, dim) -> (batch_size, seq_len)
             out = mix.squeeze()
         else:
@@ -212,28 +200,26 @@ class SelfAttentionBlock(nn.Module):
         if self.norm is not None:
             out = self.norm(out)
 
-        return out
+        return out, weights
 
 class SHARNN(Base):
     def __init__(self, **params):
         super().__init__(**params)
         self.rnn = BiRNNBlock(params['emb_dim'], params['dim'],
-            normalise = True, nlayers = params['nlayers'])
-        self.seq_attn = SelfAttentionBlock(2 * params['dim'], normalise = True)
-        self.proj = FCBlock(2 * params['dim'], self.ntargets, normalise = True)
-        self.cat_attn = SelfAttentionBlock(self.ntargets, normalise = False)
-        self.boom = BoomBlock(self.ntargets, params.get('boom_dim', 512),
-            normalise = True)
+            nlayers = params['nlayers'])
+        self.seq_attn = SelfAttentionBlock(2 * params['dim'])
+        self.proj = FCBlock(2 * params['dim'], self.ntargets)
+        self.cat_attn = SelfAttentionBlock(self.ntargets)
+        self.boom = BoomBlock(self.ntargets, params.get('boom_dim', 512))
 
     def forward(self, x):
         x = self.embed(x)
         x, _ = self.rnn(x)
-        x = self.seq_attn(x)
+        x, _ = self.seq_attn(x)
         x = torch.sum(x, dim = 0)
         x = self.proj(x)
-        x = x + self.cat_attn(x)
-        x = self.boom(x)
-        return x
+        x, _ = self.cat_attn(x)
+        return self.boom(x)
 
 class LogisticRegression(Base):
     def __init__(self, **params):
@@ -287,10 +273,10 @@ class ConvRNN(Base):
         x = self.embed(x)
         x = self.conv(x)
         x, _ = self.rnn(x)
-        x = self.seq_attn(x)
+        x, _ = self.seq_attn(x)
         x = torch.mean(x, dim = 0)
         x = self.proj(x)
-        x = self.cat_attn(x)
+        x, _ = self.cat_attn(x)
         return x
 
 
