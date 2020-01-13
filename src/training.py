@@ -7,7 +7,7 @@ from utils import get_path
 
 class NestedBCELoss(nn.Module):
     def __init__(self, cat_weights: torch.FloatTensor, 
-        mcat_weights: torch.FloatTensor, mcat_ratio: float = 0.5,
+        mcat_weights: torch.FloatTensor, mcat_ratio: float = 0.1,
         data_dir: str = '.data'):
         super().__init__()
         from utils import get_mcat_masks
@@ -41,8 +41,8 @@ class NestedBCELoss(nn.Module):
         return self
 
 def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
-    mcat_ratio: float = 0.5, data_dir: str = '.data', pbar_width: int = None,
-    ema: float = 0.9):
+    name: str = 'no_name',  mcat_ratio: float = 0.1, ema: float = 0.99, 
+    data_dir: str = '.data', pbar_width: int = None):
     from sklearn.metrics import f1_score
     import warnings
     import wandb
@@ -54,7 +54,16 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
     print(f'Number of trainable parameters: {model.trainable_params():,d}')
 
     # Sign into wandb and log metrics from model
-    wandb.init(project = 'scholarly')
+    config = {
+        'name': name,
+        'mcat_ratio': mcat_ratio, 
+        'epochs': epochs, 
+        'lr': lr,
+        'batch_size': train_dl.batch_size,
+        'ema': ema,
+        'vectors': train_dl.vectors
+    }
+    wandb.init(project = 'scholarly', config = config)
     wandb.watch(model)
 
     weights = get_class_weights(train_dl, pbar_width = pbar_width)
@@ -214,6 +223,8 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
 
     # Save the model's state dict to wandb directory
     torch.save(model.state_dict(), Path(wandb.run.dir) / 'model.pt')
+    wandb.save('model.pt')
+
     return model
 
 
