@@ -1,6 +1,6 @@
 def main(mcat_ratio: float, epochs: int, dim: int, model: str, 
     nlayers: int, fname: str, gpu: bool, name: str, lr: float,
-    batch_size: int, split_ratio: float, vectors: str) -> str:
+    batch_size: int, split_ratio: float, vectors: str, wandb: bool) -> str:
     from data import load_data
     from utils import get_path
 
@@ -54,7 +54,8 @@ def main(mcat_ratio: float, epochs: int, dim: int, model: str,
         epochs = epochs, 
         lr = lr,
         mcat_ratio = mcat_ratio,
-        name = name 
+        name = name,
+        use_wandb = wandb
     )
 
     return model.evaluate(val_dl)
@@ -73,6 +74,7 @@ if __name__ == '__main__':
     parser.add_argument('--mcat_ratio', type = float,  default = 0.1)
     parser.add_argument('--fname', default = 'arxiv_data')
     parser.add_argument('--gpu', type = bool, default = False)
+    parser.add_argument('--wandb', type = bool, default = True)
     parser.add_argument('--model', default = 'sharnn',
         choices = ['sharnn', 'logreg', 'cnn', 'mlp', 'convrnn'])
     parser.add_argument('--vectors', default = 'fasttext', 
