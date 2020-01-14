@@ -7,8 +7,7 @@ from tqdm.auto import tqdm
 def predict(model, title: str, abstract: str):
     pass
 
-def evaluate(model, val_dl, output_dict: bool = False,
-    data_dir: str = '.data'):
+def evaluate(model, val_dl, output_dict: bool = False):
     from sklearn.metrics import classification_report
     import warnings
     from utils import get_cats
@@ -32,7 +31,7 @@ def evaluate(model, val_dl, output_dict: bool = False,
         y_val = torch.cat(y_vals, dim = 0)
         y_hat = torch.cat(y_hats, dim = 0)
 
-        cats = get_cats(data_dir = data_dir)
+        cats = get_cats(data_dir = model.data_dir)
 
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')

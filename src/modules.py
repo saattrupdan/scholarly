@@ -13,8 +13,10 @@ class Base(nn.Module):
     def __init__(self, **params):
         super().__init__()
         from utils import get_cats
+        self.data_dir = params.get('data_dir', '.data')
+        self.pbar_width = params.get('pbar_width')
         self.params = params
-        self.ntargets = len(get_cats())
+        self.ntargets = len(get_cats(data_dir = self.data_dir))
         self.embed = nn.Embedding(params['vocab_size'], params['emb_dim'])
         self.embed.weight = nn.Parameter(params['emb_matrix'], 
             requires_grad = False)
@@ -166,8 +168,8 @@ class LayerNormGRU(nn.Module):
 class SelfAttentionBlock(nn.Module):
     def __init__(self, dim: int, normalise: bool = True):
         super().__init__()
-        self.sqrt_dim = torch.sqrt(nn.Parameter(torch.FloatTensor([dim]), 
-            requires_grad = False))
+        self.sqrt_dim = nn.Parameter(torch.sqrt(torch.FloatTensor([dim])), 
+            requires_grad = False)
         self.norm = nn.LayerNorm(dim) if normalise else None
 
     def forward(self, inputs):
