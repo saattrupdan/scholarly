@@ -11,12 +11,22 @@ def get_path(path_name: str) -> Path:
 
 def get_cats(data_dir: str = '.data') -> list:
     import json
-    with open(get_path(data_dir) / 'cats.json', 'r') as f:
+    cats_path = get_path(data_dir) / 'cats.json'
+    if not cats_path.is_file():
+        from db import ArXivDatabase
+        db = ArXivDatabase(data_dir = data_dir)
+        db.get_cats()
+    with open(cats_path, 'r') as f:
         return json.load(f)
 
 def get_mcat_dict(data_dir: str = '.data') -> list:
     import json
-    with open(get_path(data_dir) / 'mcat_dict.json', 'r') as f:
+    mcat_dict_path = get_path(data_dir) / 'mcat_dict.json'
+    if not mcat_dict_path.is_file():
+        from db import ArXivDatabase
+        db = ArXivDatabase(data_dir = data_dir)
+        db.get_mcat_dict()
+    with open(mcat_dict_path, 'r') as f:
         return json.load(f)
 
 def get_nrows(fname: str, data_dir: str = '.data') -> int:
@@ -36,7 +46,9 @@ def get_mcats(data_dir: str = '.data') -> list:
     return mcats
 
 def get_mcat_masks(data_dir: str = '.data') -> torch.FloatTensor:
-    cats, mcats, mcat_dict = get_cats(), get_mcats(), get_mcat_dict()
+    cats = get_cats(data_dir = data_dir)
+    mcats = get_mcats(data_dir = data_dir)
+    mcat_dict = get_mcat_dict(data_dir = data_dir)
     mcat2idx = {mcat:idx for idx, mcat in enumerate(mcats)}
     mcat_idxs = [mcat2idx[mcat] for mcat in mcats]
     dup_cats = torch.FloatTensor([mcat2idx[mcat_dict[cat]] for cat in cats])
@@ -95,7 +107,7 @@ def get_class_weights(dl, pbar_width: int = None, data_dir: str = '.data'):
         # Adding 1 to avoid zero division
         cat_weights = torch.max(counts) / (counts + 1)
 
-    mcat_masks = get_mcat_masks()
+    mcat_masks = get_mcat_masks(data_dir = data_dir)
     mcat_counts = [torch.sum(counts * mask) for mask in mcat_masks]
     mcat_counts = torch.FloatTensor(mcat_counts)
 
@@ -105,4 +117,4 @@ def get_class_weights(dl, pbar_width: int = None, data_dir: str = '.data'):
 
 
 if __name__ == '__main__':
-    print(get_mcat_masks())
+    pass

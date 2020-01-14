@@ -15,10 +15,12 @@ class NestedBCELoss(nn.Module):
         self.mcat_ratio = mcat_ratio
         self.cat_weights = cat_weights
         self.mcat_weights = mcat_weights
+        self.data_dir = data_dir
     
     def forward(self, pred: torch.Tensor, target: torch.Tensor) -> float:
         from utils import cats2mcats
-        mpred, mtarget = cats2mcats(pred, target, masks = self.masks)
+        mpred, mtarget = cats2mcats(pred, target, masks = self.masks,
+            data_dir = self.data_dir)
         cat_loss = F.binary_cross_entropy_with_logits(pred, target,
             pos_weight = self.cat_weights)
         mcat_loss = F.binary_cross_entropy_with_logits(mpred, mtarget,
@@ -41,8 +43,7 @@ class NestedBCELoss(nn.Module):
         return self
 
 def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
-    name: str = 'no_name',  mcat_ratio: float = 0.1, ema: float = 0.99, 
-    data_dir: str = '.data', pbar_width: int = None):
+    name: str = 'no_name',  mcat_ratio: float = 0.1, ema: float = 0.99):
     from sklearn.metrics import f1_score
     import warnings
     import wandb
@@ -66,11 +67,12 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
     wandb.init(project = 'scholarly', config = config)
     wandb.watch(model)
 
-    weights = get_class_weights(train_dl, pbar_width = pbar_width)
+    weights = get_class_weights(train_dl, pbar_width = model.pbar_width, 
+        data_dir = model.data_dir)
     criterion = NestedBCELoss(**weights, mcat_ratio = mcat_ratio, 
-        data_dir = data_dir)
+        data_dir = model.data_dir)
     optimizer = optim.Adam(model.parameters(), lr = lr)
-    mcat_masks = get_mcat_masks(data_dir = data_dir)
+    mcat_masks = get_mcat_masks(data_dir = model.data_dir)
 
     if model.is_cuda():
         mcat_masks = mcat_masks.cuda()
@@ -80,7 +82,7 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
     avg_loss, avg_cat_f1, avg_mcat_f1 = 0, 0, 0
     for epoch in range(epochs):
         with tqdm(total = len(train_dl) * train_dl.batch_size, 
-            ncols = pbar_width) as pbar:
+            ncols = model.pbar_width) as pbar:
             model.train()
 
             for idx, (x_train, y_train) in enumerate(train_dl):
@@ -96,7 +98,7 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
 
                 # Get master cat predictions
                 my_hat, my_train = cats2mcats(y_hat, y_train, 
-                    masks = mcat_masks)
+                    masks = mcat_masks, data_dir = model.data_dir)
                 mpreds = torch.sigmoid(my_hat)
 
                 # Calculate loss and perform backprop
@@ -156,7 +158,7 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
 
                     # Get mcat predictions
                     my_hat, my_val = cats2mcats(y_hat, y_val, 
-                        masks = mcat_masks)
+                        masks = mcat_masks, data_dir = model.data_dir)
                     mpreds = torch.sigmoid(my_hat)
 
                     # Collect the true and predicted labels
@@ -195,7 +197,7 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                 if val_cat_f1 > best_score:
                     best_score = val_cat_f1
                     model_type = type(model).__name__
-                    for f in get_path(data_dir).glob(f'{model_type}*.pt'):
+                    for f in get_path(model.data_dir).glob(f'{model_type}*.pt'):
                         f.unlink()
 
                     data = {
@@ -209,7 +211,7 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
 
                     with warnings.catch_warnings():
                         warnings.simplefilter('ignore')
-                        torch.save(data, get_path(data_dir) / model_fname)
+                        torch.save(data, get_path(model.data_dir) / model_fname)
 
                 # Update progress bar
                 desc = f'Epoch {epoch:2d} - '\

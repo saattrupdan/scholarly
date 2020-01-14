@@ -1,5 +1,5 @@
 def train_fasttext(
-    txt_fname: str,
+    txt_fname: str = 'preprocessed_docs.txt',
     model_fname: str = 'fasttext.bin', 
     vec_fname: str = 'fasttext',
     data_dir: str = '.data', 
@@ -77,9 +77,23 @@ def train_fasttext(
     
 
 if __name__ == '__main__':
-    train_fasttext(
-        txt_fname = 'preprocessed_docs.txt',
-        data_dir = '.data',
-        min_count = 2,
-        min_char_ngram = 2
-    )
+    from argparse import ArgumentParser
+
+    # The fasttext model used in the scholarly project used the default
+    # parameters except min_count = 2 and min_char_ngram = 2
+
+    ap = ArgumentParser()
+    ap.add_argument('--txt_fname', default = 'preprocessed_docs.txt')
+    ap.add_argument('--vec_fname', default = 'fasttext')
+    ap.add_argument('--data_dir', default = '.data')
+    ap.add_argument('--lr', type = float, default = 0.05)
+    ap.add_argument('--emb_dim', type = int, default = 100)
+    ap.add_argument('--window', type = int, default = 5)
+    ap.add_argument('--epochs', type = int, default = 5)
+    ap.add_argument('--min_count', type = int, default = 5)
+    ap.add_argument('--min_char_ngram', type = int, default = 3)
+    ap.add_argument('--max_char_ngram', type = int, default = 6)
+    ap.add_argument('--neg_samples', type = int, default = 5)
+    ap.add_argument('--max_word_ngram', type = int, default = 1)
+
+    train_fasttext(**vars(ap.parse_args()))

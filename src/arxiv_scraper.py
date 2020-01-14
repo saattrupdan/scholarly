@@ -148,21 +148,18 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = '.data',
 
     # Create data directory
     data_dir = get_path(data_dir)
-    if not data_dir.is_dir():
-        data_dir.mkdir()
+    if not data_dir.is_dir(): data_dir.mkdir()
 
     # Create database path
     db_path = data_dir / f'{db_name}.db'
 
-    # Create log path if it exists
+    # Remove existing database and log if we are overwriting
+    if overwrite: db_path.unlink()
+
+    # Create log path if it exists, and write log header
     if log_path is not None:
         log_path = Path(log_path)
         log_path.write_text(f'{db_name} database log'.upper())
-
-    # Remove existing database and log if we are overwriting
-    if overwrite:
-        db_path.unlink()
-        log_path.unlink()
 
     # Load database or create new one if it does not exist
     db = ArXivDatabase(name = db_name, data_dir = data_dir)
@@ -230,9 +227,15 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = '.data',
             log_path.write_text(log)
     
 if __name__ == '__main__':
-    from pathlib import Path
-    pcloud = Path.home() / 'pCloudDrive' / 'public_folder' / 'scholarly_data'
-    scrape(
-        data_dir = '.data', 
-        log_path = pcloud / 'arxiv_data_log.txt'
-    )
+    from argparse import ArgumentParser
+
+    parser = ArgumentParser()
+    parser.add_argument('--db_name', default = 'arxiv_data')
+    parser.add_argument('--data_dir', default = '.data')
+    parser.add_argument('--batch_size', type = int, default = 1000)
+    parser.add_argument('--patience', type = int, default = 20)
+    parser.add_argument('--overwrite', type = bool, default = False)
+    parser.add_argument('--start_from')
+    parser.add_argument('--log_path')
+
+    scrape(**vars(parser.parse_args()))
