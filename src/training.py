@@ -42,10 +42,9 @@ class NestedBCELoss(nn.Module):
 
 def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
     name: str = 'no_name',  mcat_ratio: float = 0.1, ema: float = 0.99, 
-    data_dir: str = '.data', pbar_width: int = None):
+    data_dir: str = '.data', pbar_width: int = None, use_wandb: bool = True):
     from sklearn.metrics import f1_score
     import warnings
-    import wandb
     from pathlib import Path
     from utils import get_mcat_masks, cats2mcats, get_class_weights
 
@@ -54,17 +53,19 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
     print(f'Number of trainable parameters: {model.trainable_params():,d}')
 
     # Sign into wandb and log metrics from model
-    config = {
-        'name': name,
-        'mcat_ratio': mcat_ratio, 
-        'epochs': epochs, 
-        'lr': lr,
-        'batch_size': train_dl.batch_size,
-        'ema': ema,
-        'vectors': train_dl.vectors
-    }
-    wandb.init(project = 'scholarly', config = config)
-    wandb.watch(model)
+    if use_wandb:
+        import wandb
+        config = {
+            'name': name,
+            'mcat_ratio': mcat_ratio, 
+            'epochs': epochs, 
+            'lr': lr,
+            'batch_size': train_dl.batch_size,
+            'ema': ema,
+            'vectors': train_dl.vectors
+        }
+        wandb.init(project = 'scholarly', config = config)
+        wandb.watch(model)
 
     weights = get_class_weights(train_dl, pbar_width = pbar_width)
     criterion = NestedBCELoss(**weights, mcat_ratio = mcat_ratio, 
@@ -124,11 +125,12 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                 avg_mcat_f1 /= 1 - ema ** niterations
 
                 # Log wandb
-                wandb.log({
-                    'loss': avg_loss, 
-                    'cat f1': avg_cat_f1,
-                    'mcat f1': avg_mcat_f1
-                })
+                if use_wandb:
+                    wandb.log({
+                        'loss': avg_loss, 
+                        'cat f1': avg_cat_f1,
+                        'mcat f1': avg_mcat_f1
+                    })
 
                 # Update the progress bar
                 desc = f'Epoch {epoch:2d} - '\
@@ -184,11 +186,12 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                 val_mcat_f1 /= len(val_dl)
 
                 # Log wandb
-                wandb.log({
-                    'val loss': val_loss, 
-                    'val cat f1': val_cat_f1,
-                    'val mcat f1': val_mcat_f1
-                })
+                if use_wandb:
+                    wandb.log({
+                        'val loss': val_loss, 
+                        'val cat f1': val_cat_f1,
+                        'val mcat f1': val_mcat_f1
+                    })
 
                 # If the current cat f1 score is the best so far, then
                 # replace the stored model with the current one
@@ -222,8 +225,9 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                 pbar.set_description(desc)
 
     # Save the model's state dict to wandb directory
-    torch.save(model.state_dict(), Path(wandb.run.dir) / 'model.pt')
-    wandb.save('model.pt')
+    if use_wandb:
+        torch.save(model.state_dict(), Path(wandb.run.dir) / 'model.pt')
+        wandb.save('model.pt')
 
     return model
 
