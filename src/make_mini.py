@@ -50,12 +50,11 @@ def make_mini(from_fname: str = 'arxiv_data', name: str = 'mini',
 if __name__ == '__main__':
     from argparse import ArgumentParser
 
-    ap = ArgumentParser()
-    ap.add_argument('-f', '--from_fname', default = 'arxiv_data')
-    ap.add_argument('-n', '--name', default = 'mini')
-    ap.add_argument('-s', '--size', type = int, default = 100000)
-    ap.add_argument('-d', '--data-dir', default = '.data')
-    ap.add_argument('-b', '--batch-size', type = int, default = 10000)
-    args = vars(ap.parse_args())
+    parser = ArgumentParser()
+    parser.add_argument('--from_fname', default = 'arxiv_data')
+    parser.add_argument('--name', default = 'mini')
+    parser.add_argument('--size', type = int, default = 100000)
+    parser.add_argument('--data-dir', default = '.data')
+    parser.add_argument('--batch-size', type = int, default = 10000)
 
-    make_mini(**args)
+    make_mini(**vars(parser.parse_args()))
