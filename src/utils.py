@@ -60,9 +60,6 @@ def apply_mask(x, masks: torch.FloatTensor = None):
     stacked = torch.stack([x for _ in range(masks.shape[0])], dim = 0)
     return masks.unsqueeze(1) * stacked
 
-def inverse_sigmoid(y, epsilon: float = 1e-7):
-    return torch.log(y / (1. - y + epsilon))
-
 def mix_logits(x, y):
     ''' Numerically stable version of 
             1 - \sigma^{-1}([1 - \sigma(x)][1 - \sigma(y)])
@@ -81,12 +78,6 @@ def cats2mcats(pred: torch.FloatTensor, target: torch.FloatTensor,
     sorted_logits = torch.sort(masked_logits, dim = -1)[0]
     first, second = sorted_logits[:, :, -1], sorted_logits[:, :, -2]
     mpred = mix_logits(first, second).permute(1, 0)
-
-    #probs = torch.sigmoid(pred)
-    #masked_probs = apply_mask(probs, masks = masks)
-    #top3_probs = torch.sort(masked_probs)[0][:, :, -3:]
-    #prod_probs = 1 - torch.prod(1 - top3_probs, dim = 2)
-    #mpred = inverse_sigmoid(prod_probs).permute(1, 0)
 
     masked_target = apply_mask(target, masks = masks)
     mtarget = torch.max(masked_target, dim = 2).values.permute(1, 0)
