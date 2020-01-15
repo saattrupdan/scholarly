@@ -115,6 +115,22 @@ def get_class_weights(dl, pbar_width: int = None, data_dir: str = '.data'):
     mcat_weights = torch.max(mcat_counts) / (mcat_counts + 1)
     return {'cat_weights': cat_weights, 'mcat_weights': mcat_weights}
 
+def boolean(input):
+    ''' Convert strings 'true'/'false' into boolean True/False.
+
+    INPUT
+        input: str or bool
+
+    OUTPUT
+        A bool object which is True if input is 'true' and False 
+        if input is 'false' (not case sensitive). If input is already
+        of type bool then nothing happens, and if none of the above
+        conditions are true then a None object is returned.
+    '''
+    if isinstance(input, bool): return input
+    if isinstance(input, str) and input.lower() == 'true': return True
+    if isinstance(input, str) and input.lower() == 'false': return False
+
 
 if __name__ == '__main__':
     pass

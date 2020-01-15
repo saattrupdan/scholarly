@@ -65,6 +65,7 @@ def main(mcat_ratio: float, epochs: int, dim: int, model: str,
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
+    from utils import boolean
 
     parser = ArgumentParser()
     parser.add_argument('--name', default = 'no_name')
@@ -76,8 +77,8 @@ if __name__ == '__main__':
     parser.add_argument('--dim', type = int, default = 256)
     parser.add_argument('--mcat_ratio', type = float,  default = 0.1)
     parser.add_argument('--fname', default = 'arxiv_data')
-    parser.add_argument('--gpu', type = bool, default = False)
-    parser.add_argument('--wandb', type = bool, default = True)
+    parser.add_argument('--gpu', type = boolean, default = False)
+    parser.add_argument('--wandb', type = boolean, default = True)
     parser.add_argument('--data_dir', default = '.data')
     parser.add_argument('--pbar_width', type = int, default = None)
     parser.add_argument('--model', default = 'sharnn',

@@ -228,13 +228,14 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = '.data',
     
 if __name__ == '__main__':
     from argparse import ArgumentParser
+    from utils import boolean
 
     parser = ArgumentParser()
     parser.add_argument('--db_name', default = 'arxiv_data')
     parser.add_argument('--data_dir', default = '.data')
     parser.add_argument('--batch_size', type = int, default = 1000)
     parser.add_argument('--patience', type = int, default = 20)
-    parser.add_argument('--overwrite', type = bool, default = False)
+    parser.add_argument('--overwrite', type = boolean, default = False)
     parser.add_argument('--start_from')
     parser.add_argument('--log_path')
 
