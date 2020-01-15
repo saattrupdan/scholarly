@@ -173,14 +173,8 @@ def load_data(tsv_fname: str, data_dir: str = '.data',
     train_dl = BatchWrapper(train_iter, vectors = vectors, cats = cats)
     val_dl = BatchWrapper(val_iter, vectors = vectors, cats = cats)
 
-    params = {
-        'vocab_size': len(TXT.vocab),
-        'emb_dim': 100,
-        'emb_matrix': TXT.vocab.vectors
-    }
-
     del dataset, train, val, train_iter, val_iter
-    return train_dl, val_dl, params
+    return train_dl, val_dl, TXT.vocab
 
 
 if __name__ == '__main__':

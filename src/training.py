@@ -201,7 +201,8 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                 if val_cat_f1 > best_score:
                     best_score = val_cat_f1
                     model_type = type(model).__name__
-                    for f in get_path(model.data_dir).glob(f'{model_type}*.pt'):
+                    glob = get_path(model.data_dir).glob(f'{model_type}*.pt')
+                    for f in glob:
                         f.unlink()
 
                     data = {
@@ -215,7 +216,8 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
 
                     with warnings.catch_warnings():
                         warnings.simplefilter('ignore')
-                        torch.save(data, get_path(model.data_dir) / model_fname)
+                        path = get_path(model.data_dir) / model_fname
+                        torch.save(data, path)
 
                 # Update progress bar
                 desc = f'Epoch {epoch:2d} - '\

@@ -17,9 +17,13 @@ class Base(nn.Module):
         self.pbar_width = params.get('pbar_width')
         self.params = params
         self.ntargets = len(get_cats(data_dir = self.data_dir))
-        self.embed = nn.Embedding(params['vocab_size'], params['emb_dim'])
-        self.embed.weight = nn.Parameter(params['emb_matrix'], 
-            requires_grad = False)
+
+        # Embedding layer
+        emb_matrix = params['vocab'].vectors
+        vocab_size = len(params['vocab'])
+        self.emb_dim = params['vocab'].vectors.shape[1]
+        self.embed = nn.Embedding(vocab_size, self.emb_dim)
+        self.embed.weight = nn.Parameter(emb_matrix, requires_grad = False)
 
     def trainable_params(self):
         train_params = (p for p in self.parameters() if p.requires_grad)
@@ -207,7 +211,7 @@ class SelfAttentionBlock(nn.Module):
 class SHARNN(Base):
     def __init__(self, **params):
         super().__init__(**params)
-        self.rnn = BiRNNBlock(params['emb_dim'], params['dim'],
+        self.rnn = BiRNNBlock(self.emb_dim, params['dim'],
             nlayers = params['nlayers'])
         self.seq_attn = SelfAttentionBlock(2 * params['dim'])
         self.proj = FCBlock(2 * params['dim'], self.ntargets)
@@ -226,7 +230,7 @@ class SHARNN(Base):
 class LogisticRegression(Base):
     def __init__(self, **params):
         super().__init__(**params)
-        self.out = nn.Linear(params['emb_dim'], self.ntargets)
+        self.out = nn.Linear(self.emb_dim, self.ntargets)
         
     def forward(self, x):
         x = self.embed(x)
@@ -236,7 +240,7 @@ class LogisticRegression(Base):
 class MLP(Base):
     def __init__(self, **params):
         super().__init__(**params)
-        self.fc = FCBlock(params['emb_dim'], params['dim'],
+        self.fc = FCBlock(self.emb_dim, params['dim'],
             nlayers = params.get('nlayers', 1), normalise = True)
         self.out = nn.Linear(params['dim'], self.ntargets)
         
@@ -249,7 +253,7 @@ class MLP(Base):
 class CNN(Base):
     def __init__(self, **params):
         super().__init__(**params)
-        self.conv = ConvBlock(params['emb_dim'], params['dim'], 
+        self.conv = ConvBlock(self.emb_dim, params['dim'], 
             nlayers = params.get('nlayers', 2), normalise = True)
         self.fc = FCBlock(params['dim'], params['dim'], normalise = True)
         self.out = nn.Linear(params['dim'], self.ntargets)
@@ -264,7 +268,7 @@ class CNN(Base):
 class ConvRNN(Base):
     def __init__(self, **params):
         super().__init__(**params)
-        self.conv = ConvBlock(params['emb_dim'], params['dim'], 
+        self.conv = ConvBlock(self.emb_dim, params['dim'], 
             nlayers = params.get('nlayers', 2), normalise = True)
         self.rnn = BiRNNBlock(params['dim'], params['dim'],  normalise = True)
         self.seq_attn = SelfAttentionBlock(2 * params['dim'], normalise = True)
@@ -283,4 +287,5 @@ class ConvRNN(Base):
 
 
 if __name__ == '__main__':
-    pass
+    from utils import get_path
+    print(load_model(get_path('.data') / 'SHARNN_1.40_2.pt'))

@@ -23,7 +23,7 @@ def main(mcat_ratio: float, epochs: int, dim: int, model: str,
 
         preprocess_data(data_dir = data_dir)
 
-    train_dl, val_dl, params = load_data(
+    train_dl, val_dl, vocab = load_data(
         tsv_fname = f'{fname}_pp',
         batch_size = batch_size,
         split_ratio = split_ratio,
@@ -50,7 +50,7 @@ def main(mcat_ratio: float, epochs: int, dim: int, model: str,
         raise RuntimeError('Invalid model name.')
 
     model = model(dim = dim, nlayers = nlayers, data_dir = data_dir, 
-        pbar_width = pbar_width, **params)
+        pbar_width = pbar_width, vocab = vocab)
     if gpu: model.cuda()
 
     model = model.fit(train_dl, val_dl, 
