@@ -17,6 +17,7 @@ class Base(nn.Module):
         self.pbar_width = params.get('pbar_width')
         self.params = params
         self.ntargets = len(get_cats(data_dir = self.data_dir))
+        self.stoi = params['vocab'].stoi
 
         # Embedding layer
         emb_matrix = params['vocab'].vectors
@@ -288,4 +289,5 @@ class ConvRNN(Base):
 
 if __name__ == '__main__':
     from utils import get_path
-    print(load_model(get_path('.data') / 'SHARNN_1.40_2.pt'))
+    model, _ = load_model(get_path('.data') / 'SHARNN_1.40_2.pt')
+    print(model.predict('test title', 'test abstract'))
