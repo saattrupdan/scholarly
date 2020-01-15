@@ -6,8 +6,8 @@ from tqdm.auto import tqdm
 from utils import get_path
 
 class NestedBCELoss(nn.Module):
-    def __init__(self, cat_weights: torch.FloatTensor, 
-        mcat_weights: torch.FloatTensor, mcat_ratio: float = 0.1,
+    def __init__(self, cat_weights: torch.FloatTensor = None, 
+        mcat_weights: torch.FloatTensor = None, mcat_ratio: float = 0.1,
         data_dir: str = '.data'):
         super().__init__()
         from utils import get_mcat_masks
@@ -25,14 +25,6 @@ class NestedBCELoss(nn.Module):
             pos_weight = self.cat_weights)
         mcat_loss = F.binary_cross_entropy_with_logits(mpred, mtarget,
             pos_weight = self.mcat_weights)
-
-        if torch.isnan(cat_loss).any() or torch.isnan(mcat_loss).any():
-            print('cat_loss =', cat_loss)
-            print('mcat_loss =', mcat_loss)
-            print('mpred =', mpred)
-            print('mtarget =', mtarget)
-            print('pred =', pred)
-            print('target =', target)
 
         return (1 - self.mcat_ratio) * cat_loss + self.mcat_ratio * mcat_loss
 
@@ -73,12 +65,15 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
         data_dir = model.data_dir)
     criterion = NestedBCELoss(**weights, mcat_ratio = mcat_ratio, 
         data_dir = model.data_dir)
+    unweighted_criterion = NestedBCELoss(mcat_ratio = mcat_ratio, 
+        data_dir = model.data_dir)
     optimizer = optim.Adam(model.parameters(), lr = lr)
     mcat_masks = get_mcat_masks(data_dir = model.data_dir)
 
     if model.is_cuda():
         mcat_masks = mcat_masks.cuda()
         criterion = criterion.cuda()
+        unweighted_criterion = unweighted_criterion.cuda()
 
     best_score, niterations = 0, 0
     avg_loss, avg_cat_f1, avg_mcat_f1 = 0, 0, 0
@@ -169,7 +164,7 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                     y_hats.append(preds > 0.5)
 
                     # Accumulate loss
-                    val_loss += float(criterion(y_hat, y_val))
+                    val_loss += float(unweighted_criterion(y_hat, y_val))
 
                     # Accumulate f1 scores
                     with warnings.catch_warnings():
