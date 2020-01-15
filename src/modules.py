@@ -46,73 +46,132 @@ class Base(nn.Module):
         return train_model(self, *args, **kwargs)
 
 class BoomBlock(nn.Module):
-    def __init__(self, dim: int, boom_dim: int, normalise: bool = True):
+    def __init__(self, dim: int, boom_dim: int, boom_normalise: bool = True,
+        boom_dropout: float = 0., normalise: bool = True, dropout: float = 0.):
         super().__init__()
         self.boom_up = nn.Linear(dim, boom_dim)
-        self.norm = nn.LayerNorm(boom_dim) if normalise else None
+        self.boom_norm = nn.LayerNorm(boom_dim) if boom_normalise else None
+        self.boom_drop = nn.Dropout(boom_dropout) if boom_dropout > 0 else None
         self.boom_down = nn.Linear(boom_dim, dim)
+        self.norm = nn.LayerNorm(boom_dim) if normalise else None
+        self.drop = nn.Dropout(dropout) if dropout > 0 else None
 
     def forward(self, inputs):
         x = F.gelu(self.boom_up(inputs))
+        if self.boom_norm is not None:
+            x = self.boom_norm(x)
+        if self.boom_drop is not None:
+            x = self.boom_drop(x)
+
+        x = inputs + self.boom_down(x)
         if self.norm is not None:
             x = self.norm(x)
-        return inputs + self.boom_down(x)
+        if self.drop is not None:
+            x = self.drop(x)
+        return x
 
 class FCBlock(nn.Module):
     def __init__(self, in_dim: int, out_dim: int, normalise: bool = True,
-        nlayers: int = 1):
+        nlayers: int = 1, dropout: float = 0.):
         super().__init__()
         self.fcs = nn.ModuleList(
             [nn.Linear(in_dim, out_dim)] + \
             [nn.Linear(out_dim, out_dim) for _ in range(nlayers - 1)]
         )
         self.norm = nn.LayerNorm(out_dim) if normalise else None
+        self.drop = nn.Dropout(dropout) if dropout > 0 else None
     
     def forward(self, x):
         for idx, fc in enumerate(self.fcs):
             x = F.gelu(fc(x)) + x if idx > 0 else F.gelu(fc(x))
         if self.norm is not None:
             x = self.norm(x)
+        if self.drop is not None:
+            x = self.drop(x)
         return x
 
 class BiRNNBlock(nn.Module):
     def __init__(self, in_dim: int, out_dim: int, normalise: bool = True,
-        nlayers: int = 1):
+        nlayers: int = 1, dropout: float = 0.):
         super().__init__()
         self.rnn = nn.GRU(in_dim, out_dim, bidirectional = True, 
             num_layers = nlayers)
         self.norm = nn.LayerNorm(2 * out_dim) if normalise else None
+        self.drop = nn.Dropout(dropout) if dropout > 0 else None
 
     def forward(self, x, h = None):
         x, h = self.rnn(x, h)
         if self.norm is not None:
             x = self.norm(x)
+        if self.drop is not None:
+            x = self.drop(x)
         return x, h
 
-class ConvBlock(nn.Module):
-    def __init__(self, in_dim: int, out_dim: int, pool: bool = True,
-        normalise: bool = True, nlayers: int = 1):
+class SelfAttentionBlock(nn.Module):
+    def __init__(self, dim: int, normalise: bool = True, dropout: float = 0.):
         super().__init__()
-        self.convs = nn.ModuleList(
-            [nn.Conv1d(in_dim, out_dim, kernel_size = 3)] + \
-            [nn.Conv1d(out_dim, out_dim, kernel_size = 3) 
-            for _ in range(nlayers - 1)]
-        )
-        self.pool = nn.MaxPool1d(kernel_size = 3) if pool else None
-        self.norm = nn.LayerNorm(out_dim) if normalise else None
+        self.sqrt_dim = nn.Parameter(torch.sqrt(torch.FloatTensor([dim])), 
+            requires_grad = False)
+        self.norm = nn.LayerNorm(dim) if normalise else None
+        self.drop = nn.Dropout(dropout) if dropout > 0 else None
+
+    def forward(self, inputs):
+        if len(inputs.shape) == 2:
+            # Special 2d case with shape (batch_size, dim)
+            # Treat dim as the sequence length to make sense of the
+            # matrix multiplications, and set dim = 1
+            # (batch_size, seq_len) -> (batch_size, seq_len, dim)
+            reshaped_inputs = inputs.unsqueeze(2)
+        else:
+            # (seq_len, batch_size, dim) -> (batch_size, seq_len, dim)
+            reshaped_inputs = inputs.permute(1, 0, 2)
+
+        # (batch_size, seq_len, dim) -> (batch_size, seq_len, seq_len)
+        scores = torch.bmm(reshaped_inputs, reshaped_inputs.permute(0, 2, 1))
+        scores /= self.sqrt_dim
+        weights = F.softmax(scores, dim = -1)
+
+        # (batch_size, seq_len, seq_len) x (batch_size, seq_len, dim)
+        # -> (batch_size, seq_len, dim)
+        mix = torch.bmm(weights, reshaped_inputs)
+
+        if len(inputs.shape) == 2:
+            # (batch_size, seq_len, dim) -> (batch_size, seq_len)
+            out = mix.squeeze()
+        else:
+            # (batch_size, seq_len, dim) -> (seq_len, batch_size, dim)
+            out = mix.permute(1, 0, 2)
+
+        if self.norm is not None:
+            out = self.norm(out)
+        if self.drop is not None:
+            out = self.drop(out)
+        return out, weights
+
+class SHARNN(Base):
+    def __init__(self, **params):
+        super().__init__(**params)
+        self.rnn = BiRNNBlock(self.emb_dim, params['dim'],
+            nlayers = params['nlayers'])
+        self.seq_attn = SelfAttentionBlock(2 * params['dim'], 
+            dropout = params['dropout'])
+        self.proj = FCBlock(2 * params['dim'], self.ntargets)
+        self.cat_attn = SelfAttentionBlock(self.ntargets,
+            dropout = params['dropout'])
+        self.boom = BoomBlock(self.ntargets, params['boom_dim'],
+            boom_dropout = params['dropout'], normalise = False)
 
     def forward(self, x):
-        x = x.permute(1, 2, 0)
-        for conv in self.convs:
-            x = F.gelu(conv(x))
-        if self.pool is not None:
-            x = self.pool(x)
-        x = x.permute(2, 0, 1)
-        if self.norm is not None:
-            x = self.norm(x)
-        return x
+        x = self.embed(x)
+        x, _ = self.rnn(x)
+        x, _ = self.seq_attn(x)
+        x = torch.sum(x, dim = 0)
+        x = self.proj(x)
+        x, _ = self.cat_attn(x)
+        return self.boom(x)
 
 class LayerNormGRUCell(nn.GRUCell):
+    # Not used at the moment
     def __init__(self, input_size: int, hidden_size: int, bias: bool = True):
         super(LayerNormGRUCell, self).__init__(input_size, hidden_size, bias)
         self.ln_ih = nn.LayerNorm(3 * hidden_size)
@@ -169,123 +228,6 @@ class LayerNormGRU(nn.Module):
         h_all = torch.cat([hs_f, hs_b], dim = 2)
 
         return h_all, h_last
-
-class SelfAttentionBlock(nn.Module):
-    def __init__(self, dim: int, normalise: bool = True):
-        super().__init__()
-        self.sqrt_dim = nn.Parameter(torch.sqrt(torch.FloatTensor([dim])), 
-            requires_grad = False)
-        self.norm = nn.LayerNorm(dim) if normalise else None
-
-    def forward(self, inputs):
-        if len(inputs.shape) == 2:
-            # Special 2d case with shape (batch_size, dim)
-            # Treat dim as the sequence length to make sense of the
-            # matrix multiplications, and set dim = 1
-            # (batch_size, seq_len) -> (batch_size, seq_len, dim)
-            reshaped_inputs = inputs.unsqueeze(2)
-        else:
-            # (seq_len, batch_size, dim) -> (batch_size, seq_len, dim)
-            reshaped_inputs = inputs.permute(1, 0, 2)
-
-        # (batch_size, seq_len, dim) -> (batch_size, seq_len, seq_len)
-        scores = torch.bmm(reshaped_inputs, reshaped_inputs.permute(0, 2, 1))
-        scores /= self.sqrt_dim
-        weights = F.softmax(scores, dim = -1)
-
-        # (batch_size, seq_len, seq_len) x (batch_size, seq_len, dim)
-        # -> (batch_size, seq_len, dim)
-        mix = torch.bmm(weights, reshaped_inputs)
-
-        if len(inputs.shape) == 2:
-            # (batch_size, seq_len, dim) -> (batch_size, seq_len)
-            out = mix.squeeze()
-        else:
-            # (batch_size, seq_len, dim) -> (seq_len, batch_size, dim)
-            out = mix.permute(1, 0, 2)
-
-        if self.norm is not None:
-            out = self.norm(out)
-
-        return out, weights
-
-class SHARNN(Base):
-    def __init__(self, **params):
-        super().__init__(**params)
-        self.rnn = BiRNNBlock(self.emb_dim, params['dim'],
-            nlayers = params['nlayers'])
-        self.seq_attn = SelfAttentionBlock(2 * params['dim'])
-        self.proj = FCBlock(2 * params['dim'], self.ntargets)
-        self.cat_attn = SelfAttentionBlock(self.ntargets)
-        self.boom = BoomBlock(self.ntargets, params.get('boom_dim', 512))
-
-    def forward(self, x):
-        x = self.embed(x)
-        x, _ = self.rnn(x)
-        x, _ = self.seq_attn(x)
-        x = torch.sum(x, dim = 0)
-        x = self.proj(x)
-        x, _ = self.cat_attn(x)
-        return self.boom(x)
-
-class LogisticRegression(Base):
-    def __init__(self, **params):
-        super().__init__(**params)
-        self.out = nn.Linear(self.emb_dim, self.ntargets)
-        
-    def forward(self, x):
-        x = self.embed(x)
-        x = torch.mean(x, dim = 0)
-        return self.out(x)
-
-class MLP(Base):
-    def __init__(self, **params):
-        super().__init__(**params)
-        self.fc = FCBlock(self.emb_dim, params['dim'],
-            nlayers = params.get('nlayers', 1), normalise = True)
-        self.out = nn.Linear(params['dim'], self.ntargets)
-        
-    def forward(self, x):
-        x = self.embed(x)
-        x = torch.mean(x, dim = 0)
-        x = self.fc(x)
-        return self.out(x)
-
-class CNN(Base):
-    def __init__(self, **params):
-        super().__init__(**params)
-        self.conv = ConvBlock(self.emb_dim, params['dim'], 
-            nlayers = params.get('nlayers', 2), normalise = True)
-        self.fc = FCBlock(params['dim'], params['dim'], normalise = True)
-        self.out = nn.Linear(params['dim'], self.ntargets)
-
-    def forward(self, x):
-        x = self.embed(x)
-        x = self.conv(x)
-        x = self.fc(x)
-        x = torch.mean(x, dim = 0)
-        return self.out(x)
-
-class ConvRNN(Base):
-    def __init__(self, **params):
-        super().__init__(**params)
-        self.conv = ConvBlock(self.emb_dim, params['dim'], 
-            nlayers = params.get('nlayers', 2), normalise = True)
-        self.rnn = BiRNNBlock(params['dim'], params['dim'],  normalise = True)
-        self.seq_attn = SelfAttentionBlock(2 * params['dim'], normalise = True)
-        self.proj = FCBlock(2 * params['dim'], self.ntargets, normalise = True)
-        self.cat_attn = SelfAttentionBlock(self.ntargets, normalise = False)
-
-    def forward(self, x):
-        x = self.embed(x)
-        x = self.conv(x)
-        x, _ = self.rnn(x)
-        x, _ = self.seq_attn(x)
-        x = torch.mean(x, dim = 0)
-        x = self.proj(x)
-        x, _ = self.cat_attn(x)
-        return x
-
 
 if __name__ == '__main__':
     from utils import get_path
