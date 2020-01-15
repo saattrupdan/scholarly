@@ -8,7 +8,6 @@ Click==7.0
 configparser==4.0.2
 cymem==2.0.2
 docker-pycreds==0.4.0
-en-core-web-sm==2.2.0
 fasttext==0.9.1
 gitdb2==2.0.6
 GitPython==3.0.5
