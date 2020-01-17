@@ -6,27 +6,32 @@ from tqdm.auto import tqdm
 from utils import get_path
 
 class NestedBCELoss(nn.Module):
-    def __init__(self, cat_weights: torch.FloatTensor = None, 
-        mcat_weights: torch.FloatTensor = None, mcat_ratio: float = 0.1,
+    def __init__(self, cat_weights, mcat_weights, mcat_factor: float = 0.85,
         data_dir: str = '.data'):
         super().__init__()
         from utils import get_mcat_masks
         self.masks = get_mcat_masks(data_dir = data_dir)
-        self.mcat_ratio = mcat_ratio
         self.cat_weights = cat_weights
         self.mcat_weights = mcat_weights
+        self.mcat_factor = mcat_factor
         self.data_dir = data_dir
     
-    def forward(self, pred: torch.Tensor, target: torch.Tensor) -> float:
+    def forward(self, pred, target, val: bool = False, iteration: int = 0):
         from utils import cats2mcats
         mpred, mtarget = cats2mcats(pred, target, masks = self.masks,
             data_dir = self.data_dir)
-        cat_loss = F.binary_cross_entropy_with_logits(pred, target,
-            pos_weight = self.cat_weights)
-        mcat_loss = F.binary_cross_entropy_with_logits(mpred, mtarget,
-            pos_weight = self.mcat_weights)
 
-        return (1 - self.mcat_ratio) * cat_loss + self.mcat_ratio * mcat_loss
+        cat_loss = F.binary_cross_entropy_with_logits(pred, target,
+            pos_weight = None if val else self.cat_weights)
+        mcat_loss = F.binary_cross_entropy_with_logits(mpred, mtarget,
+            pos_weight = None if val else self.mcat_weights)
+        
+        logiteration = torch.log(torch.FloatTensor([1 + iteration]))[0]
+        mcat_factor = self.mcat_factor ** (1 + logiteration)
+        cat_loss *= 1 - mcat_factor
+        mcat_loss *= mcat_factor
+
+        return cat_loss + mcat_loss
 
     def cuda(self):
         self.masks = self.masks.cuda()
@@ -35,8 +40,8 @@ class NestedBCELoss(nn.Module):
         return self
 
 def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
-    name: str = 'no_name',  mcat_ratio: float = 0.1, ema: float = 0.99, 
-    data_dir: str = '.data', pbar_width: int = None, use_wandb: bool = True):
+    name: str = 'no_name', mcat_factor: float = 0.85, ema: float = 0.99, 
+    pbar_width: int = None, use_wandb: bool = True):
     from sklearn.metrics import f1_score
     import warnings
     from pathlib import Path
@@ -51,21 +56,24 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
         import wandb
         config = {
             'name': name,
-            'mcat_ratio': mcat_ratio, 
+            'mcat_factor': mcat_factor, 
             'epochs': epochs, 
             'lr': lr,
             'batch_size': train_dl.batch_size,
             'ema': ema,
-            'vectors': train_dl.vectors
+            'vectors': train_dl.vectors,
+            'dropout': model.params['dropout'],
+            'nlayers': model.params['nlayers'],
+            'dim': model.params['dim'],
+            'boom_dim': model.params['boom_dim'],
+            'emb_dim': model.params['vocab'].vectors.shape[1],
         }
         wandb.init(project = 'scholarly', config = config)
         wandb.watch(model)
 
     weights = get_class_weights(train_dl, pbar_width = model.pbar_width, 
         data_dir = model.data_dir)
-    criterion = NestedBCELoss(**weights, mcat_ratio = mcat_ratio, 
-        data_dir = model.data_dir)
-    unweighted_criterion = NestedBCELoss(mcat_ratio = mcat_ratio, 
+    criterion = NestedBCELoss(**weights, mcat_factor = mcat_factor,
         data_dir = model.data_dir)
     optimizer = optim.Adam(model.parameters(), lr = lr)
     mcat_masks = get_mcat_masks(data_dir = model.data_dir)
@@ -73,10 +81,8 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
     if model.is_cuda():
         mcat_masks = mcat_masks.cuda()
         criterion = criterion.cuda()
-        unweighted_criterion = unweighted_criterion.cuda()
 
-    best_score, niterations = 0, 0
-    avg_loss, avg_cat_f1, avg_mcat_f1 = 0, 0, 0
+    avg_loss, avg_cat_f1, avg_mcat_f1, best_score = 0, 0, 0, 0
     for epoch in range(epochs):
         with tqdm(total = len(train_dl) * train_dl.batch_size, 
             ncols = model.pbar_width) as pbar:
@@ -98,8 +104,12 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                     masks = mcat_masks, data_dir = model.data_dir)
                 mpreds = torch.sigmoid(my_hat)
 
+                # Keep track of the current iteration index
+                iteration = epoch * len(train_dl) * train_dl.batch_size
+                iteration += idx * train_dl.batch_size
+
                 # Calculate loss and perform backprop
-                loss = criterion(y_hat, y_train)
+                loss = criterion(y_hat, y_train, iteration)
                 loss.backward()
                 optimizer.step()
 
@@ -111,16 +121,13 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                     mcat_f1 = f1_score(mpreds.cpu() > 0.5, my_train.cpu(),
                         average = 'samples')
 
-                # Keep track of the number of iterations, for ema bias
-                niterations += train_dl.batch_size
-
                 # Exponentially moving average of loss and f1 scores
                 avg_loss = ema * avg_loss + (1 - ema) * float(loss)
-                avg_loss /= 1 - ema ** niterations
+                avg_loss /= 1 - ema ** (iteration / (1 - ema) + 1)
                 avg_cat_f1 = ema * avg_cat_f1 + (1 - ema) * float(cat_f1)
-                avg_cat_f1 /= 1 - ema ** niterations
-                avg_mcat_f1 = ema * avg_mcat_f1 + (1-ema) * float(mcat_f1)
-                avg_mcat_f1 /= 1 - ema ** niterations
+                avg_cat_f1 /= 1 - ema ** (iteration / (1 - ema) + 1)
+                avg_mcat_f1 = ema * avg_mcat_f1 + (1 - ema) * float(mcat_f1)
+                avg_mcat_f1 /= 1 - ema ** (iteration / (1 - ema) + 1)
 
                 # Log wandb
                 if use_wandb:
@@ -164,7 +171,7 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                     y_hats.append(preds > 0.5)
 
                     # Accumulate loss
-                    val_loss += float(unweighted_criterion(y_hat, y_val))
+                    val_loss += float(criterion(y_hat, y_val, iteration))
 
                     # Accumulate f1 scores
                     with warnings.catch_warnings():
