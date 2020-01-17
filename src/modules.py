@@ -231,5 +231,5 @@ class LayerNormGRU(nn.Module):
 
 if __name__ == '__main__':
     from utils import get_path
-    model, _ = load_model(get_path('.data') / 'SHARNN_1.40_2.pt')
+    model, _ = load_model(get_path('.data') / 'SHARNN_64.93_18.pt')
     print(model.predict('test title', 'test abstract'))
