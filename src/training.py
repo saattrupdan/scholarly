@@ -6,30 +6,28 @@ from tqdm.auto import tqdm
 from utils import get_path
 
 class NestedBCELoss(nn.Module):
-    def __init__(self, cat_weights, mcat_weights, mcat_factor: float = 0.85,
+    def __init__(self, cat_weights, mcat_weights, mcat_ratio: float,
         data_dir: str = '.data'):
         super().__init__()
         from utils import get_mcat_masks
         self.masks = get_mcat_masks(data_dir = data_dir)
         self.cat_weights = cat_weights
         self.mcat_weights = mcat_weights
-        self.mcat_factor = mcat_factor
+        self.mcat_ratio = mcat_ratio
         self.data_dir = data_dir
     
-    def forward(self, pred, target, val: bool = False, iteration: int = 0):
+    def forward(self, pred, target, weighted: bool = True):
         from utils import cats2mcats
         mpred, mtarget = cats2mcats(pred, target, masks = self.masks,
             data_dir = self.data_dir)
 
         cat_loss = F.binary_cross_entropy_with_logits(pred, target,
-            pos_weight = None if val else self.cat_weights)
+            pos_weight = self.cat_weights if weighted else None)
         mcat_loss = F.binary_cross_entropy_with_logits(mpred, mtarget,
-            pos_weight = None if val else self.mcat_weights)
+            pos_weight = self.mcat_weights if weighted else None)
         
-        logiteration = torch.log(torch.FloatTensor([1 + iteration]))[0]
-        mcat_factor = self.mcat_factor ** (1 + logiteration)
-        cat_loss *= 1 - mcat_factor
-        mcat_loss *= mcat_factor
+        cat_loss *= 1 - self.mcat_ratio
+        mcat_loss *= self.mcat_ratio
 
         return cat_loss + mcat_loss
 
@@ -40,7 +38,7 @@ class NestedBCELoss(nn.Module):
         return self
 
 def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
-    name: str = 'no_name', mcat_factor: float = 0.85, ema: float = 0.99, 
+    name: str = 'no_name', mcat_ratio: float = 0.1, ema: float = 0.99, 
     pbar_width: int = None, use_wandb: bool = True):
     from sklearn.metrics import f1_score
     import warnings
@@ -56,7 +54,7 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
         import wandb
         config = {
             'name': name,
-            'mcat_factor': mcat_factor, 
+            'mcat_ratio': mcat_ratio, 
             'epochs': epochs, 
             'lr': lr,
             'batch_size': train_dl.batch_size,
@@ -73,7 +71,7 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
 
     weights = get_class_weights(train_dl, pbar_width = model.pbar_width, 
         data_dir = model.data_dir)
-    criterion = NestedBCELoss(**weights, mcat_factor = mcat_factor,
+    criterion = NestedBCELoss(**weights, mcat_ratio = mcat_ratio,
         data_dir = model.data_dir)
     optimizer = optim.Adam(model.parameters(), lr = lr)
     mcat_masks = get_mcat_masks(data_dir = model.data_dir)
@@ -104,12 +102,8 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                     masks = mcat_masks, data_dir = model.data_dir)
                 mpreds = torch.sigmoid(my_hat)
 
-                # Keep track of the current iteration index
-                iteration = epoch * len(train_dl) * train_dl.batch_size
-                iteration += idx * train_dl.batch_size
-
                 # Calculate loss and perform backprop
-                loss = criterion(y_hat, y_train, iteration)
+                loss = criterion(y_hat, y_train)
                 loss.backward()
                 optimizer.step()
 
@@ -120,6 +114,10 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                         average = 'samples')
                     mcat_f1 = f1_score(mpreds.cpu() > 0.5, my_train.cpu(),
                         average = 'samples')
+
+                # Keep track of the current iteration index
+                iteration = epoch * len(train_dl) * train_dl.batch_size
+                iteration += idx * train_dl.batch_size
 
                 # Exponentially moving average of loss and f1 scores
                 avg_loss = ema * avg_loss + (1 - ema) * float(loss)
@@ -171,7 +169,7 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                     y_hats.append(preds > 0.5)
 
                     # Accumulate loss
-                    val_loss += float(criterion(y_hat, y_val, iteration))
+                    val_loss += float(criterion(y_hat,y_val, weighted = False))
 
                     # Accumulate f1 scores
                     with warnings.catch_warnings():
@@ -221,6 +219,12 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                         path = get_path(model.data_dir) / model_fname
                         torch.save(data, path)
 
+                    # Save the model's state dict to wandb directory
+                    if use_wandb:
+                        wandb_path = Path(wandb.run.dir) / model_fname
+                        torch.save(model.state_dict(), wandb_path)
+                        wandb.save(model_fname)
+
                 # Update progress bar
                 desc = f'Epoch {epoch:2d} - '\
                        f'loss {avg_loss:.4f} - '\
@@ -230,11 +234,6 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                        f'val cat f1 {val_cat_f1:.4f} - '\
                        f'val mcat f1 {val_mcat_f1:.4f}'
                 pbar.set_description(desc)
-
-    # Save the model's state dict to wandb directory
-    if use_wandb:
-        torch.save(model.state_dict(), Path(wandb.run.dir) / 'model.pt')
-        wandb.save('model.pt')
 
     return model
 

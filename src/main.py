@@ -1,4 +1,4 @@
-def main(mcat_factor: float, epochs: int, dim: int, 
+def main(mcat_ratio: float, epochs: int, dim: int, 
     nlayers: int, fname: str, gpu: bool, name: str, lr: float, 
     batch_size: int, split_ratio: float, vectors: str, data_dir: str, 
     pbar_width: int, wandb: bool, boom_dim: int, dropout: float, 
@@ -41,7 +41,7 @@ def main(mcat_factor: float, epochs: int, dim: int,
     model = model.fit(train_dl, val_dl, 
         epochs = epochs, 
         lr = lr,
-        mcat_factor = mcat_factor,
+        mcat_ratio = mcat_ratio,
         name = name,
         use_wandb = wandb,
         ema = ema
@@ -62,7 +62,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type = int, default = 5)
     parser.add_argument('--dim', type = int, default = 256)
     parser.add_argument('--boom_dim', type = int, default = 512)
-    parser.add_argument('--mcat_factor', type = float, default = 0.85)
+    parser.add_argument('--mcat_ratio', type = float, default = 0.1)
     parser.add_argument('--fname', default = 'arxiv_data')
     parser.add_argument('--gpu', type = boolean, default = False)
     parser.add_argument('--wandb', type = boolean, default = True)
