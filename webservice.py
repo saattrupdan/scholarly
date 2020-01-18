@@ -3,7 +3,7 @@ from src.utils import get_path
 from src.modules import load_model
 
 application = Flask(__name__, template_folder = get_path('static'))
-model_path = next(get_path('.data').glob('model*.pt'))
+model_path = next(get_root_path().glob('model*.pt'))
 model, _ = load_model(model_path)
 
 @application.route('/')
