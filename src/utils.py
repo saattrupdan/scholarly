@@ -225,6 +225,37 @@ def boolean(input):
     if isinstance(input, str) and input.lower() == 'true': return True
     if isinstance(input, str) and input.lower() == 'false': return False
 
+def clean(doc: str):
+    ''' Clean a document. This removes newline symbols, scare quotes,
+        superfluous whitespace and replaces equations with -EQN-. 
+        
+    INPUT
+        doc: str
+            A document
+
+    OUTPUT
+        The cleaned version of the document
+    '''
+    import re
+
+    # Remove newline symbols
+    doc = re.sub('\n', ' ', doc)
+
+    # Convert LaTeX equations of the form $...$, $$...$$, \[...\]
+    # or \(...\) to -EQN-
+    dollareqn = '(?<!\$)\${1,2}(?!\$).*?(?<!\$)\${1,2}(?!\$)'
+    bracketeqn = '\\[\[\(].*?\\[\]\)]'
+    eqn = f'({dollareqn}|{bracketeqn})'
+    doc = re.sub(eqn, ' -EQN- ', doc)
+
+    # Remove scare quotes, both as " and \\"
+    doc = re.sub('(\\"|")', '', doc)
+
+    # Merge multiple spaces
+    doc = re.sub(r' +', ' ', doc)
+
+    return doc.strip()
+
 
 if __name__ == '__main__':
     pass

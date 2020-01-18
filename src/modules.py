@@ -5,7 +5,7 @@ from torch.nn import functional as F
 
 def load_model(path: str):
     checkpoint = torch.load(path, map_location = lambda storage, log: storage)
-    model = checkpoint['model_type'](**checkpoint['params'])
+    model = SHARNN(**checkpoint['params'])
     model.load_state_dict(checkpoint['state_dict'])
     return model, checkpoint['scores']
 
@@ -320,6 +320,16 @@ class LayerNormGRU(nn.Module):
         return h_all, h_last
 
 if __name__ == '__main__':
-    from utils import get_path
-    model, _ = load_model(get_path('.data') / 'SHARNN_64.93_18.pt')
-    print(model.predict('test title', 'test abstract'))
+    from utils import get_path, clean
+    model_path = next(get_path('.data').glob('model*.pt'))
+    model, _ = load_model(model_path)
+
+    import pickle
+    with open('model_test.pkl', 'wb') as f:
+        pickle.dump(model, f)
+
+    title = 'Robo-AO M Dwarf Multiplicity Survey: Catalog'
+    abstract = '''
+We analyze observations from Robo-AO's field M dwarf survey taken on the 2.1m Kitt Peak telescope and perform a multiplicity comparison with Gaia DR2. Through its laser-guided, automated system, the Robo-AO instrument has yielded the largest adaptive optics M dwarf multiplicity survey to date. After developing an interface to visually identify and locate stellar companions, we selected eleven lowsignificance Robo-AO detections for follow-up on the Keck II telescope using NIRC2. In the Robo-AO survey we find 553 candidate companions within 4" around 534 stars out of 5566 unique targets, most of which are new discoveries. Using a position cross match with DR2 on all targets, we assess the binary recoverability of Gaia DR2 and compare the properties of multiples resolved by both Robo-AO and Gaia. The catalog of nearby M dwarf systems and their basic properties presented here can assist other surveys which observe these stars, such as the NASA TESS mission.'''
+
+    print(model.predict(title, abstract))

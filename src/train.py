@@ -1,4 +1,4 @@
-def main(mcat_ratio: float, epochs: int, dim: int, 
+def train(mcat_ratio: float, epochs: int, dim: int, 
     nlayers: int, fname: str, gpu: bool, name: str, lr: float, 
     batch_size: int, split_ratio: float, vectors: str, data_dir: str, 
     pbar_width: int, wandb: bool, boom_dim: int, dropout: float, 

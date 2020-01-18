@@ -23,11 +23,11 @@ def predict(model, title: str, abstract: str):
         above 50%.
     '''
     import spacy
-    from utils import get_cats
+    from utils import get_cats, clean
 
     # Merge title and abstract
-    text = f'-TITLE_START- {title} -TITLE_END- '\
-           f'-ABSTRACT_START- {abstract} -ABSTRACT_END-'
+    text = f'-TITLE_START- {clean(title)} -TITLE_END- '\
+           f'-ABSTRACT_START- {clean(abstract)} -ABSTRACT_END-'
 
     # Load the tokeniser
     nlp = spacy.load('en')

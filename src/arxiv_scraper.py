@@ -1,34 +1,3 @@
-def clean(doc: str):
-    ''' Clean a document. This removes newline symbols, scare quotes,
-        superfluous whitespace and replaces equations with -EQN-. 
-        
-    INPUT
-        doc: str
-            A document
-
-    OUTPUT
-        The cleaned version of the document
-    '''
-    import re
-
-    # Remove newline symbols
-    doc = re.sub('\n', ' ', doc)
-
-    # Convert LaTeX equations of the form $...$, $$...$$, \[...\]
-    # or \(...\) to -EQN-
-    dollareqn = '(?<!\$)\${1,2}(?!\$).*?(?<!\$)\${1,2}(?!\$)'
-    bracketeqn = '\\[\[\(].*?\\[\]\)]'
-    eqn = f'({dollareqn}|{bracketeqn})'
-    doc = re.sub(eqn, ' -EQN- ', doc)
-
-    # Remove scare quotes, both as " and \\"
-    doc = re.sub('(\\"|")', '', doc)
-
-    # Merge multiple spaces
-    doc = re.sub(r' +', ' ', doc)
-
-    return doc.strip()
-
 def fetch(category: str, all_cats: list, max_results: int = 5, start: int = 0):
     ''' Fetch papers from the ArXiv.
 
@@ -66,6 +35,7 @@ def fetch(category: str, all_cats: list, max_results: int = 5, start: int = 0):
     from bs4 import BeautifulSoup
     from datetime import datetime
     from time import sleep
+    from utils import clean
 
     params = {
         'search_query': 'cat:' + category,

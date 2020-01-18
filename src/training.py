@@ -61,7 +61,8 @@ class NestedBCELoss(nn.Module):
 
 def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
     name: str = 'no_name', mcat_ratio: float = 0.1, ema: float = 0.99, 
-    pbar_width: int = None, use_wandb: bool = True):
+    pbar_width: int = None, use_wandb: bool = True, 
+    overwrite_model: bool = True):
     ''' Train a given model. 
     
     INPUT
@@ -89,6 +90,8 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
             then this should be set to ~1000
         use_wandb: bool = True
             Whether to use the Weights & Biases online performance recording
+        overwrite_model: bool = True
+            Whether to overwrite existing models when saving
 
     OUTPUT
         The trained model
@@ -252,20 +255,18 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                 # If the current cat f1 score is the best so far, then
                 # replace the stored model with the current one
                 if val_cat_f1 > best_score:
+                    model_fname = f'model_{val_cat_f1 * 100:.2f}.pt' 
                     best_score = val_cat_f1
-                    model_type = type(model).__name__
-                    glob = get_path(model.data_dir).glob(f'{model_type}*.pt')
-                    for f in glob:
-                        f.unlink()
-
                     data = {
-                        'model_type': type(model),
                         'params': model.params,
                         'state_dict': model.state_dict(),
                         'scores': model.evaluate(val_dl, output_dict = True)
                     }
-                    model_fname = f'{model_type}_{val_cat_f1 * 100:.2f}_'\
-                                  f'{epoch}.pt' 
+
+                    if overwrite_model:
+                        glob = get_path(model.data_dir).glob(f'model*.pt')
+                        for f in glob:
+                            f.unlink()
 
                     with warnings.catch_warnings():
                         warnings.simplefilter('ignore')
@@ -274,8 +275,7 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
 
                     # Save the model's state dict to wandb directory
                     if use_wandb:
-                        wandb_path = Path(wandb.run.dir) / model_fname
-                        torch.save(model.state_dict(), wandb_path)
+                        torch.save(data, Path(wandb.run.dir) / model_fname)
                         wandb.save(model_fname)
 
                 # Update progress bar
