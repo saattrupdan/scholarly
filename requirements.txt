@@ -1,4 +1,4 @@
-https://download.pytorch.org/whl/cpu/torch-1.4.0%2Bcpu-cp38-cp38-linux_x86_64.whl
+https://download.pytorch.org/whl/cpu/torch-1.4.0%2Bcpu-cp36-cp36m-linux_x86_64.whl
 blis==0.4.1
 catalogue==1.0.0
 certifi==2019.11.28
