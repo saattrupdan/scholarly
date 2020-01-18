@@ -1,1 +1,1 @@
-web: gunicorn app:src/webservice
+web: gunicorn src.webservice
