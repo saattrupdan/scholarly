@@ -17,7 +17,8 @@ except ImportError:
     from .training import train_model
 
 def load_model(path: str):
-    checkpoint = torch.load(path, map_location = lambda storage, log: storage)
+    #checkpoint = torch.load(path, map_location = lambda storage, log: storage)
+    checkpoint = torch.load(path)
     model = SHARNN(**checkpoint['params'])
     model.load_state_dict(checkpoint['state_dict'])
     return model, checkpoint['scores']
