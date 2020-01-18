@@ -1,5 +1,5 @@
 from flask import Flask, request, render_template
-from src.utils import get_path
+from src.utils import get_root_path, get_path
 from src.modules import load_model
 
 application = Flask(__name__, template_folder = get_path('static'))
