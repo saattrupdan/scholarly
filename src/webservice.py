@@ -2,15 +2,15 @@ from flask import Flask, request, render_template
 from utils import get_path
 from modules import load_model
 
-app = Flask(__name__, template_folder = get_path('static'))
+application = Flask(__name__, template_folder = get_path('static'))
 model_path = next(get_path('.data').glob('model*.pt'))
 model, _ = load_model(model_path)
 
-@app.route('/')
+@application.route('/')
 def predict():
     return render_template('index.html')
 
-@app.route('/result', methods = ['POST', 'GET'])
+@application.route('/result', methods = ['POST', 'GET'])
 def result():
     import json
 
@@ -26,4 +26,4 @@ def result():
         return json.dumps(preds)
 
 if __name__ == '__main__':
-    app.run(debug = True, host = '0.0.0.0')
+    application.run(debug = True, host = '0.0.0.0')
