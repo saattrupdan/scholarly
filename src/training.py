@@ -3,7 +3,11 @@ from torch import nn
 from torch import optim
 from torch.nn import functional as F
 from tqdm.auto import tqdm
-from utils import get_path
+
+try:
+    from utils import get_path, get_mcat_masks, cats2mcats, get_class_weights
+except ImportError:
+    from .utils import get_path, get_mcat_masks, cats2mcats, get_class_weights
 
 class NestedBCELoss(nn.Module):
     ''' A nested form of binary cross entropy.
@@ -31,7 +35,6 @@ class NestedBCELoss(nn.Module):
     def __init__(self, cat_weights, mcat_weights, mcat_ratio: float = 0.1,
         data_dir: str = '.data'):
         super().__init__()
-        from utils import get_mcat_masks
         self.masks = get_mcat_masks(data_dir = data_dir)
         self.cat_weights = cat_weights
         self.mcat_weights = mcat_weights
@@ -39,7 +42,6 @@ class NestedBCELoss(nn.Module):
         self.data_dir = data_dir
     
     def forward(self, pred, target, weighted: bool = True):
-        from utils import cats2mcats
         mpred, mtarget = cats2mcats(pred, target, masks = self.masks,
             data_dir = self.data_dir)
 
@@ -99,7 +101,6 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
     from sklearn.metrics import f1_score
     import warnings
     from pathlib import Path
-    from utils import get_mcat_masks, cats2mcats, get_class_weights
 
     print(f'Training on {len(train_dl) * train_dl.batch_size:,d} samples '\
           f'and validating on {len(val_dl) * val_dl.batch_size:,d} samples.')

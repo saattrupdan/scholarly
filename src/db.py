@@ -1,3 +1,8 @@
+try:
+    from utils import get_path
+except ImportError:
+    from .utils import get_path
+
 class ArXivDatabase:
     ''' A SQLite databse for storing ArXiv papers. 
     
@@ -10,7 +15,6 @@ class ArXivDatabase:
 
     def __init__(self, name: str = 'arxiv_data.db', data_dir: str = '.data'):
         from sqlalchemy import create_engine
-        from utils import get_path
         db_path = get_path(data_dir) / name
         self.engine = create_engine(f'sqlite:///{db_path}')
         self.data_dir = data_dir
@@ -185,7 +189,6 @@ class ArXivDatabase:
 
     def get_cats(self, conn = None) -> list:
         ''' Get a list of all the categories. '''
-        from utils import get_path
         import json
 
         if conn is None:
@@ -203,7 +206,6 @@ class ArXivDatabase:
 
     def get_mcat_dict(self, conn = None) -> dict:
         ''' Get a dictionary mapping each category to its master category. '''
-        from utils import get_path
         import json
 
         if conn is None:
@@ -230,7 +232,6 @@ class ArXivDatabase:
         '''
         import pandas as pd
         from tqdm.auto import tqdm
-        from utils import get_path
 
         with self.engine.connect() as conn:
 

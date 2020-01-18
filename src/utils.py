@@ -20,7 +20,10 @@ def get_cats(data_dir: str = '.data') -> list:
     import json
     cats_path = get_path(data_dir) / 'cats.json'
     if not cats_path.is_file():
-        from db import ArXivDatabase
+        try:
+            from db import ArXivDatabase
+        except ImportError:
+            from .db import ArXivDatabase
         db = ArXivDatabase(data_dir = data_dir)
         db.get_cats()
     with open(cats_path, 'r') as f:
@@ -38,7 +41,10 @@ def get_mcat_dict(data_dir: str = '.data') -> list:
     import json
     mcat_dict_path = get_path(data_dir) / 'mcat_dict.json'
     if not mcat_dict_path.is_file():
-        from db import ArXivDatabase
+        try:
+            from db import ArXivDatabase
+        except ImportError:
+            from .db import ArXivDatabase
         db = ArXivDatabase(data_dir = data_dir)
         db.get_mcat_dict()
     with open(mcat_dict_path, 'r') as f:
