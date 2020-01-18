@@ -1,9 +1,9 @@
 from flask import Flask, request, render_template
-from utils import get_path
-from modules import load_model
+from pathlib import Path
+from src.modules import load_model
 
-application = Flask(__name__, template_folder = get_path('static'))
-model_path = next(get_path('.data').glob('model*.pt'))
+application = Flask(__name__, template_folder = Path('static'))
+model_path = next(Path('.data').glob('model*.pt'))
 model, _ = load_model(model_path)
 
 @application.route('/')
