@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+
+  <title>
+    Scholarly: Categorising scientific papers
+  </title>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Raleway">
+
+  <style>
+    body, h1 {
+      font-family: "Raleway", sans-serif; 
+      color: black
+    }
+    body, html {
+      height: 100%
+    }
+    .bgimg {
+      background-image: url(https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data/scholarly_bgimg.jpeg);
+      min-height: 100%;
+      background-position: center;
+      background-size: cover;
+      filter: blur(8px);
+    }
+  </style>
+
+  <body>
+    <div class="bgimg w3-display-container w3-animate-opacity w3-text-white">
+    </div>
+    <div class="w3-display-middle">
+      <h1 class="w3-jumbo w3-animate-top" align=center>
+        Scholarly
+      </h1>
+      <p align=center size=5>
+        <font size=5>Categorising scientific papers</font>
+      </p>
+      <hr class="w3-border-grey" style="margin:auto;width:40%">
+      <p class="w3-large w3-center">
+        <form action="http://localhost:5000/result" method="POST">
+          <p align=left>
+            <font size=4>Title: </font><br>
+            <textarea type="text" rows=1 cols="60" name="title" required autofocus>{{ title }}</textarea>
+          </p>
+          <p align=left>
+            <font size=4>Abstract: </font><br>
+            <textarea type="text" rows="4" cols="60" name="abstract" required>{{ abstract }}</textarea>
+          </p>
+          <p align=center><input type="submit" value="Submit"/></p>
+        </form>
+        
+        {% if preds %}
+          <p align=center>
+            The model predicts the following categories:<br>
+            <table style="width:100%">
+              <tr>
+                <th>Category</th>
+                <th>Probability</th>
+              </tr>
+              {% for cat, prob in preds %}
+                <tr align=center>
+                  <td>{{ cat }}</td>
+                  <td>{{ prob }}</td>
+                </tr>
+              {% endfor %}
+            </ul>
+          </p>
+        {% endif %}
+      </p>
+    </div>
+  </div>
+  </body>
+
+</html>
