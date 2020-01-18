@@ -6,7 +6,29 @@ from tqdm.auto import tqdm
 from utils import get_path
 
 class NestedBCELoss(nn.Module):
-    def __init__(self, cat_weights, mcat_weights, mcat_ratio: float,
+    ''' A nested form of binary cross entropy.
+
+    From the category predictions it pulls out the master category
+    predictions, using the utils.cats2mcats function, which enables
+    a positive master category prediction even though all individual
+    category predictions within that master category have sigmoid values
+    less than 0.50.
+
+    It then computes the binary cross entropy of the category- and master
+    category predictions, with the given class weights, and scales the
+    two losses in accordance with mcat_ratio.
+
+    INPUT
+        cat_weights: torch.FloatTensor
+            The class weights for the categories
+        mcat_weights: torch.FloatTensor
+            The class weights for the master categories
+        mcat_ratio: float = 0.1
+            The ratio between the category loss and the master category loss
+        data_dir: str = '.data'
+            The path to the data directory
+    '''
+    def __init__(self, cat_weights, mcat_weights, mcat_ratio: float = 0.1,
         data_dir: str = '.data'):
         super().__init__()
         from utils import get_mcat_masks
@@ -40,6 +62,37 @@ class NestedBCELoss(nn.Module):
 def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
     name: str = 'no_name', mcat_ratio: float = 0.1, ema: float = 0.99, 
     pbar_width: int = None, use_wandb: bool = True):
+    ''' Train a given model. 
+    
+    INPUT
+        model: torch.nn.Module
+            The model we would like to train
+        train_dl: torch.utils.data.DataLoader
+            A dataloader containing the training set
+        val_dl : torch.utils.data.DataLoader
+            A dataloader containing the validation set
+        epochs: int = 10
+            The amount of epochs to train
+        lr: float = 3e-4
+            The learning rate used
+        name: str = 'no_name'
+            The name of the training run, used for wandb purposes
+        mcat_ratio: float = 0.1
+            How much the master category loss is prioritised over the
+            category loss
+        ema: float = 0.99
+            The fact used in computing the exponential moving averages of
+            the loss and sample-average F1 scores. Roughly corresponds to
+            taking the average of the previous 1 / (1 - ema) many batches
+        pbar_width: int = None
+            The width of the progress bar. If running in a Jupyter notebook
+            then this should be set to ~1000
+        use_wandb: bool = True
+            Whether to use the Weights & Biases online performance recording
+
+    OUTPUT
+        The trained model
+    '''
     from sklearn.metrics import f1_score
     import warnings
     from pathlib import Path

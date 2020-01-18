@@ -3,6 +3,8 @@ def main(mcat_ratio: float, epochs: int, dim: int,
     batch_size: int, split_ratio: float, vectors: str, data_dir: str, 
     pbar_width: int, wandb: bool, boom_dim: int, dropout: float, 
     ema: float) -> str:
+    ''' Loads the data, preprocesses it if needed, builds the SHARNN model,
+        trains it and evaluates it. '''
     from data import load_data
     from utils import get_path
     from modules import SHARNN

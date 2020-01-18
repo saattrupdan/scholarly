@@ -10,6 +10,18 @@ def load_model(path: str):
     return model, checkpoint['scores']
 
 class Base(nn.Module):
+    ''' A base model, with a frozen word embedding layer.
+
+    INPUT
+        data_dir: str = '.data'
+            The name of the data directory
+        pbar_width: str = None
+            The width of the progress bar when training. If you are using
+            a Jupyter notebook then you should set this to ~1000
+        vocab: torchtext.vocab.Vocab
+            The vocabulary of the training dataset, containing the word 
+            vectors and the conversion dictionary from tokens to indices
+    '''
     def __init__(self, **params):
         super().__init__()
         from utils import get_cats
@@ -27,25 +39,52 @@ class Base(nn.Module):
         self.embed.weight = nn.Parameter(emb_matrix, requires_grad = False)
 
     def trainable_params(self):
+        ''' Get the number of trainable parameters of the model. '''
         train_params = (p for p in self.parameters() if p.requires_grad)
         return sum(param.numel() for param in train_params)
 
     def is_cuda(self):
+        ''' Check if the model is stored on the GPU. '''
         return next(self.parameters()).is_cuda
 
     def evaluate(self, *args, **kwargs):
+        ''' Evaluate the performance of the model. See inference.evaluate
+            for more details. '''
         from inference import evaluate
         return evaluate(self, *args, **kwargs)
 
     def predict(self, *args, **kwargs):
+        ''' Perform predictions. See inference.predict for more details. '''
         from inference import predict
         return predict(self, *args, **kwargs)
 
     def fit(self, *args, **kwargs):
+        ''' Train the model. See training.train_model for more details. '''
         from training import train_model
         return train_model(self, *args, **kwargs)
 
 class BoomBlock(nn.Module):
+    ''' A block consisting of two dense layers, one embedding into a high
+        dimensional space, and the other projecting back into the dimension
+        we started with. A GeLU activation is applied after the first
+        embedding, but no activation is applied after the projection.
+
+        INPUT
+            dim: int
+                The dimension of the input and output
+            boom_dim: int
+                The dimension of the intermediate space
+            boom_normalise: bool = True
+                Whether to apply a layer normalisation after embedding into
+                the larger space
+            boom_dropout: float = 0.
+                The amount of dropout to apply after embedding into the
+                larger space
+            normalise: bool = True
+                Whether to apply a layer normalisation after the projection
+            dropout: float = 0.
+                The amount of dropout to apply after the projection
+    '''
     def __init__(self, dim: int, boom_dim: int, boom_normalise: bool = True,
         boom_dropout: float = 0., normalise: bool = True, dropout: float = 0.):
         super().__init__()
@@ -71,6 +110,21 @@ class BoomBlock(nn.Module):
         return x
 
 class FCBlock(nn.Module):
+    ''' A block of fully connected layers.
+
+    INPUT
+        in_dim: int
+            The dimension of the input space
+        out_dim: int
+            The dimension of the output space
+        normalise: bool = True
+            Whether to apply layer normalisation after the fully connected 
+            layers has been applied
+        nlayers: int = 1
+            The number of fully connected layers
+        dropout: float = 0.
+            The amount of dropout to apply after the fully connected layers
+    '''
     def __init__(self, in_dim: int, out_dim: int, normalise: bool = True,
         nlayers: int = 1, dropout: float = 0.):
         super().__init__()
@@ -91,6 +145,22 @@ class FCBlock(nn.Module):
         return x
 
 class BiRNNBlock(nn.Module):
+    ''' A block of bidirectional Gated Recurrent Units.
+
+    INPUT
+        in_dim: int
+            The dimension of the input space
+        out_dim: int
+            *Half* of the dimension of the output space. The actual
+            output dimension will be 2 * out_dim, as the GRUs are 
+            bidirectional
+        normalise: bool = True
+            Whether to apply layer normalisation after the GRU layers
+        nlayers: int = 1
+            The number of GRU layers
+        dropout: float = 0.
+            The amount of dropout to apply after the GRU layers
+    '''
     def __init__(self, in_dim: int, out_dim: int, normalise: bool = True,
         nlayers: int = 1, dropout: float = 0.):
         super().__init__()
@@ -108,6 +178,18 @@ class BiRNNBlock(nn.Module):
         return x, h
 
 class SelfAttentionBlock(nn.Module):
+    ''' A block of self-attention. The attention used here is the scaled
+    dot product attention, which allows inputs to be either two- or three-
+    dimensional. Note that this layer has no trainable parameters.
+
+    INPUT
+        dim: int
+            The dimension of the input- and output space
+        normalise: bool = True
+            Whether apply layer normalisation to the output
+        dropout: float = 0.
+            The amount of dropout to apply after the self-attention
+    '''
     def __init__(self, dim: int, normalise: bool = True, dropout: float = 0.):
         super().__init__()
         self.sqrt_dim = nn.Parameter(torch.sqrt(torch.FloatTensor([dim])), 
@@ -149,6 +231,12 @@ class SelfAttentionBlock(nn.Module):
         return out, weights
 
 class SHARNN(Base):
+    ''' A single-block approximation to the SHA-RNN. The inputs are passed
+    through an embedding layer and a bidirection GRU, we then attend to the
+    three-dimensional outputs of the GRU, then project down to the target
+    space, perform another attention (now two-dimensional) and finish off
+    with a boom layer. Layer normalisation is applied everywhere.
+    '''
     def __init__(self, **params):
         super().__init__(**params)
         self.rnn = BiRNNBlock(self.emb_dim, params['dim'],
@@ -170,8 +258,9 @@ class SHARNN(Base):
         x, _ = self.cat_attn(x)
         return self.boom(x)
 
+# This layer is not used at the moment
 class LayerNormGRUCell(nn.GRUCell):
-    # Not used at the moment
+    ''' A GRU cell with layer normalisation. '''
     def __init__(self, input_size: int, hidden_size: int, bias: bool = True):
         super(LayerNormGRUCell, self).__init__(input_size, hidden_size, bias)
         self.ln_ih = nn.LayerNorm(3 * hidden_size)
@@ -195,8 +284,9 @@ class LayerNormGRUCell(nn.GRUCell):
         hy = newgate + inputgate * (hx - newgate)
         return hy
 
+# This layer does not work at the moment, fails at backprop.
 class LayerNormGRU(nn.Module):
-    # Does not work at the moment, fails at backprop.
+    ''' A GRU in which layer normalisation is applied at every time step. '''
     def __init__(self, input_size: int, hidden_size: int, bias: bool = True):
         super().__init__()
         torch.autograd.set_detect_anomaly(True)

@@ -52,7 +52,7 @@ def preprocess_data(
     # Specify the input- and output paths
     cats_in = get_path(data_dir) / (tsv_fname + '.tsv')
     cats_out = get_path(data_dir) / (tsv_fname + '_pp.tsv')
-    txt_path = get_path(data_dir) / 'preprocessed_docs.txt'
+    txt_path = get_path(data_dir) / txt_fname
 
     # Load the English spaCy model used for tokenisation
     nlp = spacy.load('en')
@@ -82,7 +82,7 @@ def preprocess_data(
     df = df[['text'] + cats]
     df.to_csv(cats_out, sep = '\t', index = False)
 
-def load_data(tsv_fname: str, data_dir: str = '.data', 
+def load_data(tsv_fname: str = 'arxiv_data', data_dir: str = '.data', 
     batch_size: int = 32, split_ratio: float = 0.95,
     random_seed: int = 42, vectors: str = 'fasttext') -> tuple:
     ''' 
@@ -92,7 +92,7 @@ def load_data(tsv_fname: str, data_dir: str = '.data',
     every batch.
 
     INPUT
-        tsv_fname: str
+        tsv_fname: str = 'arxiv_data'
             The name of the tsv file, without file extension
         data_dir: str = '.data'
             The data directory
@@ -141,7 +141,7 @@ def load_data(tsv_fname: str, data_dir: str = '.data',
 
     # Split into a training- and validation set
     if random_seed is None:
-        train_val = dataset.split(split_ratio = split_ratio)
+        train, val = dataset.split(split_ratio = split_ratio)
     else:
         random.seed(random_seed)
         train, val = dataset.split(
@@ -165,7 +165,7 @@ def load_data(tsv_fname: str, data_dir: str = '.data',
     # lengths and pad the texts in each batch
     train_iter, val_iter = data.BucketIterator.splits(
         datasets = (train, val),
-        batch_sizes = (batch_size, batch_size),
+        batch_size = batch_size,
         sort_key = lambda sample: len(sample.text)
     )
 
@@ -178,4 +178,4 @@ def load_data(tsv_fname: str, data_dir: str = '.data',
 
 
 if __name__ == '__main__':
-    preprocess_data(tsv_fname = 'arxiv_data')
+    preprocess_data()

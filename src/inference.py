@@ -5,6 +5,23 @@ from torch.nn import functional as F
 from tqdm.auto import tqdm
 
 def predict(model, title: str, abstract: str):
+    ''' Get the predicted categories from a model, a title and an abstract.
+
+    INPUT
+        model: torch.nn.Module
+            A trained model
+        title: str
+            The title of a research paper
+        abstract: str
+            The abstract of a research paper
+    
+    OUTPUT
+        A list of pairs (category_name, probability), with category_name
+        being the official name of the arXiv category, such as math.LO,
+        and the probability being the outputted sigmoid value from the
+        model. The list will only contain pairs where the probability is
+        above 50%.
+    '''
     import spacy
     from utils import get_cats
 
@@ -32,6 +49,19 @@ def predict(model, title: str, abstract: str):
     return predicted_cats 
 
 def evaluate(model, val_dl, output_dict: bool = False):
+    ''' Evaluate a model on a validation dataset.
+
+    INPUT
+        model: torch.nn.Module
+            A trained model
+        val_dl: torch.utils.data.DataLoader
+            A data loader containing a validation dataset
+        output_dict: bool = False
+            Whether to output a dictionary instead of a string
+
+    OUTPUT
+        A string or dictionary containing a classification report
+    '''
     from sklearn.metrics import classification_report
     import warnings
     from utils import get_cats
