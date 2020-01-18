@@ -4,6 +4,11 @@ from torch import optim
 from torch.nn import functional as F
 from tqdm.auto import tqdm
 
+try:
+    from utils import get_cats, clean
+except ImportError:
+    from .utils import get_cats, clean
+
 def predict(model, title: str, abstract: str):
     ''' Get the predicted categories from a model, a title and an abstract.
 
@@ -23,7 +28,6 @@ def predict(model, title: str, abstract: str):
         above 50%.
     '''
     import spacy
-    from utils import get_cats, clean
 
     # Merge title and abstract
     text = f'-TITLE_START- {clean(title)} -TITLE_END- '\
@@ -64,7 +68,6 @@ def evaluate(model, val_dl, output_dict: bool = False):
     '''
     from sklearn.metrics import classification_report
     import warnings
-    from utils import get_cats
 
     with torch.no_grad():
         model.eval()

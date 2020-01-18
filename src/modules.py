@@ -3,6 +3,19 @@ from torch import nn
 from torch import optim
 from torch.nn import functional as F
 
+try:
+    from utils import get_cats, get_path, clean
+except ImportError:
+    from .utils import get_cats, get_path, clean
+try:
+    from inference import evaluate, predict
+except ImportError:
+    from .inference import evaluate, predict
+try:
+    from training import train_model
+except ImportError:
+    from .training import train_model
+
 def load_model(path: str):
     checkpoint = torch.load(path, map_location = lambda storage, log: storage)
     model = SHARNN(**checkpoint['params'])
@@ -24,7 +37,6 @@ class Base(nn.Module):
     '''
     def __init__(self, **params):
         super().__init__()
-        from utils import get_cats
         self.data_dir = params.get('data_dir', '.data')
         self.pbar_width = params.get('pbar_width')
         self.params = params
@@ -50,17 +62,14 @@ class Base(nn.Module):
     def evaluate(self, *args, **kwargs):
         ''' Evaluate the performance of the model. See inference.evaluate
             for more details. '''
-        from inference import evaluate
         return evaluate(self, *args, **kwargs)
 
     def predict(self, *args, **kwargs):
         ''' Perform predictions. See inference.predict for more details. '''
-        from inference import predict
         return predict(self, *args, **kwargs)
 
     def fit(self, *args, **kwargs):
         ''' Train the model. See training.train_model for more details. '''
-        from training import train_model
         return train_model(self, *args, **kwargs)
 
 class BoomBlock(nn.Module):
@@ -320,13 +329,8 @@ class LayerNormGRU(nn.Module):
         return h_all, h_last
 
 if __name__ == '__main__':
-    from utils import get_path, clean
     model_path = next(get_path('.data').glob('model*.pt'))
     model, _ = load_model(model_path)
-
-    import pickle
-    with open('model_test.pkl', 'wb') as f:
-        pickle.dump(model, f)
 
     title = 'Robo-AO M Dwarf Multiplicity Survey: Catalog'
     abstract = '''
