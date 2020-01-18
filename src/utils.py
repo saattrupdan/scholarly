@@ -3,7 +3,11 @@ import torch
 
 def get_root_path() -> Path:
     ''' Returns project root folder. '''
-    return Path.cwd().parent
+    current_dir = Path.cwd()
+    if str(current_dir)[-3:] == 'src':
+        return current_dir.parent
+    else:
+        return current_dir
 
 def get_path(path_name: str) -> Path:
     ''' Returns data folder. '''
