@@ -188,13 +188,20 @@ class ArXivDatabase:
         ''' Get a list of all the categories. '''
         import json
 
+        query = 'select id, name from cats order by id'
         if conn is None:
             with self.engine.connect() as conn:
-                cat_result = conn.execute('select id from cats')
-                cats = [cat[0] for cat in cat_result]
+                cat_result = list(conn.execute(query))
+                cats = {
+                    'id': [cat[0] for cat in cat_result],
+                    'name': [cat[1] for cat in cat_result]
+                }
         else:
-            cat_result = conn.execute('select id from cats')
-            cats = [cat[0] for cat in cat_result]
+            cat_result = list(conn.execute(query))
+            cats = {
+                'id': [cat[0] for cat in cat_result],
+                'name': [cat[1] for cat in cat_result]
+            }
 
         with open(get_path(self.data_dir) / 'cats.json', 'w') as f:
             json.dump(cats, f)
@@ -259,9 +266,9 @@ class ArXivDatabase:
 
 if __name__ == '__main__':
     db = ArXivDatabase(data_dir = '.data')
-    db.get_mcat_dict()
+    #db.get_mcat_dict()
     db.get_cats()
-    db.get_training_df()
+    #db.get_training_df()
 
     # Example query: Output the number of authors in database
     #with db.engine.connect() as conn:

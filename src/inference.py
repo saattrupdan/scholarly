@@ -3,7 +3,7 @@ from torch import nn
 from torch import optim
 from torch.nn import functional as F
 from tqdm.auto import tqdm
-from utils import get_cats, clean, cats2mcats
+from utils import get_cats, clean, cats2mcats, get_path
 
 def predict(model, title: str, abstract: str):
     ''' Get the predicted categories from a model, a title and an abstract.
@@ -41,7 +41,7 @@ def predict(model, title: str, abstract: str):
     probs = torch.sigmoid(logits)
 
     # Get the categories corresponding to the predictions
-    cats = get_cats(data_dir = model.data_dir)
+    cats = get_cats(data_dir = model.data_dir)['id']
     sorted_idxs = probs.argsort(descending = True)
     predicted_cats = [(cats[idx], round(float(probs[idx]), 2))
         for idx in sorted_idxs if probs[idx] >= min(0.5, torch.max(probs))]
@@ -84,7 +84,7 @@ def evaluate(model, val_dl, output_dict: bool = False):
         y_val = torch.cat(y_vals, dim = 0)
         y_hat = torch.cat(y_hats, dim = 0)
 
-        cats = get_cats(data_dir = model.data_dir)
+        cats = get_cats(data_dir = model.data_dir)['id']
 
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
@@ -98,4 +98,13 @@ def evaluate(model, val_dl, output_dict: bool = False):
 
 
 if __name__ == '__main__':
-    pass
+    from argparse import ArgumentParser
+    from modules import load_model
+
+    model_path = next(get_path('.data').glob('model*.pt'))
+    model, scores = load_model(model_path)
+
+    parser = ArgumentParser()
+    parser.add_argument('--title', required = True)
+    parser.add_argument('--abstract', required = True)
+    print(model.predict(**vars(parser.parse_args())))

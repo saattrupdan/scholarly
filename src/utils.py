@@ -24,10 +24,7 @@ def get_cats(data_dir: str = '.data') -> list:
     import json
     cats_path = get_path(data_dir) / 'cats.json'
     if not cats_path.is_file():
-        try:
-            from db import ArXivDatabase
-        except ImportError:
-            from .db import ArXivDatabase
+        from db import ArXivDatabase
         db = ArXivDatabase(data_dir = data_dir)
         db.get_cats()
     with open(cats_path, 'r') as f:
@@ -45,10 +42,7 @@ def get_mcat_dict(data_dir: str = '.data') -> list:
     import json
     mcat_dict_path = get_path(data_dir) / 'mcat_dict.json'
     if not mcat_dict_path.is_file():
-        try:
-            from db import ArXivDatabase
-        except ImportError:
-            from .db import ArXivDatabase
+        from db import ArXivDatabase
         db = ArXivDatabase(data_dir = data_dir)
         db.get_mcat_dict()
     with open(mcat_dict_path, 'r') as f:
@@ -80,7 +74,7 @@ def get_mcats(data_dir: str = '.data') -> list:
     OUTPUT
         A list of master categories
     '''
-    cats = get_cats(data_dir = data_dir)
+    cats = get_cats(data_dir = data_dir)['id']
     mcat_dict = get_mcat_dict(data_dir = data_dir)
     duplicate_mcats = [mcat_dict[cat] for cat in cats]
 
@@ -102,7 +96,7 @@ def get_mcat_masks(data_dir: str = '.data') -> torch.FloatTensor:
         categories, respectively. Every slice contains a mask for a given
         master category.
     '''
-    cats = get_cats(data_dir = data_dir)
+    cats = get_cats(data_dir = data_dir)['id']
     mcats = get_mcats(data_dir = data_dir)
     mcat_dict = get_mcat_dict(data_dir = data_dir)
     mcat2idx = {mcat: idx for idx, mcat in enumerate(mcats)}

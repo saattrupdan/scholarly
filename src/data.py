@@ -128,7 +128,7 @@ def load_data(tsv_fname: str = 'arxiv_data', data_dir: str = '.data',
     CAT = data.Field(sequential = False, use_vocab = False, is_target = True)
 
     # Set up the columns in the tsv file with their associated fields
-    cats = get_cats(data_dir = data_dir)
+    cats = get_cats(data_dir = data_dir)['id']
     fields = [('text', TXT)] + [(cat, CAT) for cat in cats]
 
     # Load in the dataset and tokenise the texts
