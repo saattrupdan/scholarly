@@ -12,11 +12,14 @@
 
   <style>
     body, h1 {
-      font-family: "Raleway", sans-serif; 
+      font-family: "Raleway", sans-serif;
       color: black
     }
     body, html {
-      height: 100%
+      height: 100%;
+    }
+    textarea {
+        width: 100%;
     }
     .bgimg {
       background-image: url(https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data/scholarly_bgimg.jpeg);
@@ -24,6 +27,10 @@
       background-position: center;
       background-size: cover;
       filter: blur(8px);
+    }
+    .boxed {
+        opacity: 60%;
+        background-color: white;
     }
   </style>
 
@@ -39,34 +46,35 @@
       </p>
       <hr class="w3-border-grey" style="margin:auto;width:40%">
       <p class="w3-large w3-center">
-        <form action="http://localhost:5000/result" method="POST">
+        <form action="https://saattrupdan.pythonanywhere.com/scholarly/result" method="POST" id="mainform">
           <p align=left>
             <font size=4>Title: </font><br>
-            <textarea type="text" rows=1 cols="60" name="title" required autofocus>{{ title }}</textarea>
+            <textarea type="text" rows="1" cols="60" name="title" form="mainform" required autofocus onkeydown="if (event.keyCode == 13) { this.form.submit(); return false; }">{{ title }}</textarea>
           </p>
           <p align=left>
             <font size=4>Abstract: </font><br>
-            <textarea type="text" rows="4" cols="60" name="abstract" required>{{ abstract }}</textarea>
+            <textarea type="text" rows="4" cols="60" name="abstract" form="mainform" required onkeydown="if (event.keyCode == 13) { this.form.submit(); return false; }">{{ abstract }}</textarea>
           </p>
           <p align=center><input type="submit" value="Submit"/></p>
         </form>
-        
+
         {% if preds %}
-          <p align=center>
-            The model predicts the following categories:<br>
+          <div align=center class=boxed>
             <table style="width:100%">
               <tr>
                 <th>Category</th>
+                <th>Description</th>
                 <th>Probability</th>
               </tr>
-              {% for cat, prob in preds %}
+              {% for cat, name, prob in preds %}
                 <tr align=center>
                   <td>{{ cat }}</td>
+                  <td>{{ name }}</td>
                   <td>{{ prob }}</td>
                 </tr>
               {% endfor %}
-            </ul>
-          </p>
+            </table>
+          </div>
         {% endif %}
       </p>
     </div>

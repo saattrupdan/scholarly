@@ -1,29 +1,29 @@
-from flask import Flask, request, render_template
-from utils import get_root_path, get_path
-from modules import load_model
+from flask import Flask, request, render_template, redirect
+from pathlib import Path
 
-application = Flask(__name__, template_folder = get_path('static'))
-model_path = next(get_root_path().glob('model*.pt'))
-model, _ = load_model(model_path)
+app = Flask(__name__, template_folder = Path('static'))
 
-@application.route('/')
-def predict():
-    return render_template('index.html')
+@app.route('/')
+def index():
+    return redirect('/scholarly')
 
-@application.route('/result', methods = ['POST', 'GET'])
+@app.route('/scholarly', methods = ['POST', 'GET'])
 def result():
     import json
+    from scholarly.modules import load_model
 
     data_dict = request.form if request.method == 'POST' else request.args
     if not data_dict:
-        return render_template('index.html')
+        return render_template('scholarly.html')
 
+    model_path = next(Path('.data').glob('scholarly_model*.pt'))
+    model, _ = load_model(model_path)
     preds = model.predict(data_dict['title'], data_dict['abstract'])
 
     if request.method == 'POST':
-        return render_template('index.html', preds = preds, **data_dict)
+        return render_template('scholarly.html', preds = preds, **data_dict)
     else:
         return json.dumps(preds)
 
 if __name__ == '__main__':
-    application.run(debug = True, host = '0.0.0.0')
+    app.run(debug = True, host = '0.0.0.0')
