@@ -9,11 +9,11 @@ A REST API is also available at the [saattrupdan.pythonanywhere.com/scholarly/re
 ## Documentation and data
 This model was trained on all titles and abstracts from all of [arXiv](https://arxiv.org) up to and including 2019, which were all scraped from their API. The scraping script can be found in `arxiv_scraper.py`. All the data can be found at
 
-<center>
+<p align=center>
   <a href="https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data">
     https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data
   </a>
-</center>
+</p>
 
 
 The main data file is the SQLite file `arxiv_data.db`, which contains 6 tables:
