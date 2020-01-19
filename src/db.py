@@ -1,7 +1,4 @@
-try:
-    from utils import get_path
-except ImportError:
-    from .utils import get_path
+from utils import get_path
 
 class ArXivDatabase:
     ''' A SQLite databse for storing ArXiv papers. 

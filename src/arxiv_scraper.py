@@ -1,3 +1,5 @@
+from utils import clean, get_path, boolean
+
 def fetch(category: str, all_cats: list, max_results: int = 5, start: int = 0):
     ''' Fetch papers from the ArXiv.
 
@@ -35,7 +37,6 @@ def fetch(category: str, all_cats: list, max_results: int = 5, start: int = 0):
     from bs4 import BeautifulSoup
     from datetime import datetime
     from time import sleep
-    from utils import clean
 
     params = {
         'search_query': 'cat:' + category,
@@ -114,7 +115,6 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = '.data',
     from db import ArXivDatabase
     from datetime import datetime
     from pathlib import Path
-    from utils import get_path
 
     # Create data directory
     data_dir = get_path(data_dir)
@@ -198,7 +198,6 @@ def scrape(db_name: str = 'arxiv_data', data_dir: str = '.data',
     
 if __name__ == '__main__':
     from argparse import ArgumentParser
-    from utils import boolean
 
     parser = ArgumentParser()
     parser.add_argument('--db_name', default = 'arxiv_data')

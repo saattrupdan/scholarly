@@ -3,11 +3,7 @@ from torch import nn
 from torch import optim
 from torch.nn import functional as F
 from tqdm.auto import tqdm
-
-try:
-    from utils import get_path, get_mcat_masks, cats2mcats, get_class_weights
-except ImportError:
-    from .utils import get_path, get_mcat_masks, cats2mcats, get_class_weights
+from utils import get_path, get_mcat_masks, cats2mcats, get_class_weights
 
 class NestedBCELoss(nn.Module):
     ''' A nested form of binary cross entropy.

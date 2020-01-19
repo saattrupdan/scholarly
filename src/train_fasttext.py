@@ -1,3 +1,5 @@
+from utils import get_path
+
 def train_fasttext(
     txt_fname: str = 'preprocessed_docs.txt',
     model_fname: str = 'fasttext.bin', 
@@ -47,7 +49,6 @@ def train_fasttext(
     '''
     import fasttext
     from tqdm.auto import tqdm
-    from utils import get_path
 
     txt_path = get_path(data_dir) / txt_fname
     model_path = get_path(data_dir) / model_fname

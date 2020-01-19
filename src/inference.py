@@ -3,11 +3,7 @@ from torch import nn
 from torch import optim
 from torch.nn import functional as F
 from tqdm.auto import tqdm
-
-try:
-    from utils import get_cats, clean
-except ImportError:
-    from .utils import get_cats, clean
+from utils import get_cats, clean, cats2mcats
 
 def predict(model, title: str, abstract: str):
     ''' Get the predicted categories from a model, a title and an abstract.
@@ -38,7 +34,7 @@ def predict(model, title: str, abstract: str):
     tokenizer = nlp.Defaults.create_tokenizer(nlp)
 
     # Numericalise the tokens
-    idxs = torch.LongTensor([[model.stoi[tok] for tok in tokenizer(text)]])
+    idxs = torch.LongTensor([[model.stoi[t.text] for t in tokenizer(text)]])
 
     # Get predictions
     logits = model(idxs.transpose(0, 1))
@@ -48,7 +44,7 @@ def predict(model, title: str, abstract: str):
     cats = get_cats(data_dir = model.data_dir)
     sorted_idxs = probs.argsort(descending = True)
     predicted_cats = [(cats[idx], round(float(probs[idx]), 2))
-        for idx in sorted_idxs if probs[idx] > 0.5]
+        for idx in sorted_idxs if probs[idx] >= min(0.5, torch.max(probs))]
 
     return predicted_cats 
 
