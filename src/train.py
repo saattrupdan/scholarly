@@ -1,3 +1,5 @@
+from utils import get_path, boolean
+
 def train(mcat_ratio: float, epochs: int, dim: int, 
     nlayers: int, fname: str, gpu: bool, name: str, lr: float, 
     batch_size: int, split_ratio: float, vectors: str, data_dir: str, 
@@ -6,7 +8,6 @@ def train(mcat_ratio: float, epochs: int, dim: int,
     ''' Loads the data, preprocesses it if needed, builds the SHARNN model,
         trains it and evaluates it. '''
     from data import load_data
-    from utils import get_path
     from modules import SHARNN
 
     pp_path = get_path(data_dir) / f'{fname}_pp.tsv'
@@ -53,7 +54,6 @@ def train(mcat_ratio: float, epochs: int, dim: int,
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
-    from utils import boolean
 
     parser = ArgumentParser()
     parser.add_argument('--name', default = 'no_name')

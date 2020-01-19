@@ -1,3 +1,5 @@
+from utils import get_path, get_nrows, get_cats
+
 def make_mini(from_fname: str = 'arxiv_data', name: str = 'mini', 
     size: int = 100000, data_dir: str = '.data', batch_size: int = 10000):
     ''' Make a smaller version of a given dataset, without needing to load
@@ -19,7 +21,6 @@ def make_mini(from_fname: str = 'arxiv_data', name: str = 'mini',
     import pandas as pd
     import numpy as np
     from tqdm.auto import tqdm
-    from utils import get_path, get_nrows, get_cats
 
     from_path = get_path(data_dir) / f'{from_fname}_pp.tsv'
     to_path = get_path(data_dir) / f'{from_fname}_{name}_pp.tsv'

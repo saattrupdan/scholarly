@@ -2,19 +2,7 @@ import torch
 from torch import nn
 from torch import optim
 from torch.nn import functional as F
-
-try:
-    from utils import get_cats, get_path, clean
-except ImportError:
-    from .utils import get_cats, get_path, clean
-try:
-    from inference import evaluate, predict
-except ImportError:
-    from .inference import evaluate, predict
-try:
-    from training import train_model
-except ImportError:
-    from .training import train_model
+from utils import get_cats, get_path, clean
 
 def load_model(path: str):
     checkpoint = torch.load(path, map_location = lambda storage, log: storage)
@@ -62,14 +50,17 @@ class Base(nn.Module):
     def evaluate(self, *args, **kwargs):
         ''' Evaluate the performance of the model. See inference.evaluate
             for more details. '''
+        from inference import evaluate
         return evaluate(self, *args, **kwargs)
 
     def predict(self, *args, **kwargs):
         ''' Perform predictions. See inference.predict for more details. '''
+        from inference import predict
         return predict(self, *args, **kwargs)
 
     def fit(self, *args, **kwargs):
         ''' Train the model. See training.train_model for more details. '''
+        from training import train_model
         return train_model(self, *args, **kwargs)
 
 class BoomBlock(nn.Module):
@@ -330,10 +321,9 @@ class LayerNormGRU(nn.Module):
 
 if __name__ == '__main__':
     model_path = next(get_path('.data').glob('model*.pt'))
-    model, _ = load_model(model_path)
+    model, scores = load_model(model_path)
 
-    title = 'Robo-AO M Dwarf Multiplicity Survey: Catalog'
-    abstract = '''
-We analyze observations from Robo-AO's field M dwarf survey taken on the 2.1m Kitt Peak telescope and perform a multiplicity comparison with Gaia DR2. Through its laser-guided, automated system, the Robo-AO instrument has yielded the largest adaptive optics M dwarf multiplicity survey to date. After developing an interface to visually identify and locate stellar companions, we selected eleven lowsignificance Robo-AO detections for follow-up on the Keck II telescope using NIRC2. In the Robo-AO survey we find 553 candidate companions within 4" around 534 stars out of 5566 unique targets, most of which are new discoveries. Using a position cross match with DR2 on all targets, we assess the binary recoverability of Gaia DR2 and compare the properties of multiples resolved by both Robo-AO and Gaia. The catalog of nearby M dwarf systems and their basic properties presented here can assist other surveys which observe these stars, such as the NASA TESS mission.'''
+    title = 'Virtual large cardinals'
+    abstract = '''We discuss new properties of virtually measurable cardinals and virtually Woodin cardinals.'''
 
     print(model.predict(title, abstract))

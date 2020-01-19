@@ -1,6 +1,6 @@
 from flask import Flask, request, render_template
-from src.utils import get_root_path, get_path
-from src.modules import load_model
+from utils import get_root_path, get_path
+from modules import load_model
 
 application = Flask(__name__, template_folder = get_path('static'))
 model_path = next(get_root_path().glob('model*.pt'))
