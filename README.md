@@ -1,13 +1,15 @@
 # Scholarly
-Category classification of scientific papers. Given a title and an abstract of a paper, the model will predict a list of categories to which the paper belongs. These categories are the 148 categories used on [arXiv](https://arxiv.org).
+Category classification of scientific papers. 
+
+Given a title and an abstract of a paper, the model will predict a list of categories to which the paper belongs. These categories are the 148 categories used on [arXiv](https://arxiv.org).
 
 ## Usage
-Go to [saattrupdan.pythonanywhere.com/scholarly](saattrupdan.pythonanywhere.com/scholarly) to test the model out. Note that it also supports LaTeX like $\frac{1}{5}$.
+A demonstration of the model can be found at [saattrupdan.pythonanywhere.com/scholarly](saattrupdan.pythonanywhere.com/scholarly). Note that you're also free to write LaTeX equations like $\frac{1}{5}$.
 
-A REST API is also available at the [saattrupdan.pythonanywhere.com/scholarly/result](https://saattrupdan.pythonanywhere.com/scholarly/result) endpoint, with arguments `title` and `abstract`. You will then receive a JSON response containing a list of lists, with each inner list containing the category id, category description and the probability. The list will only include results with probabilities at least 50%, and the list is sorted descending by probability. [Here](https://saattrupdan.pythonanywhere.com/scholarly/result?title="test"&abstract="test") is an example of a query.
+A REST API is also available at the same endpoint, with arguments `title` and `abstract`. You will then receive a JSON response containing a list of lists, with each inner list containing the category id, category description and the probability. The list will only include results with probabilities at least 50%, and the list is sorted descending by probability. [Here](https://saattrupdan.pythonanywhere.com/scholarly?title="test"&abstract="test") is an example of a query.
 
 ## Documentation and data
-This model was trained on all titles and abstracts from all of [arXiv](https://arxiv.org) up to and including 2019, which were all scraped from their API. The scraping script can be found in `arxiv_scraper.py`. All the data can be found at
+This model was trained on all titles and abstracts from all of [arXiv](https://arxiv.org) up to and including year 2019, which were all scraped from their API. The scraping script can be found in `arxiv_scraper.py`. All the data can be found at
 
 <p align=center>
   <a href="https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data">
