@@ -261,8 +261,7 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
                     }
 
                     if overwrite_model:
-                        glob = get_path(model.data_dir).glob(f'model*.pt')
-                        for f in glob:
+                        for f in get_path(model.data_dir).glob(f'model*.pt'):
                             f.unlink()
 
                     with warnings.catch_warnings():
@@ -272,6 +271,9 @@ def train_model(model, train_dl, val_dl, epochs: int = 10, lr: float = 3e-4,
 
                     # Save the model's state dict to wandb directory
                     if use_wandb:
+                        if overwrite_model:
+                            for f in Path(wandb.run.dir).glob(f'model*.pt'):
+                                f.unlink()
                         torch.save(data, Path(wandb.run.dir) / model_fname)
                         wandb.save(model_fname)
 
