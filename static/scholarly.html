@@ -12,7 +12,7 @@
 
   <style>
     body, h1 {
-      font-family: "Raleway", sans-serif; 
+      font-family: "Raleway", sans-serif;
       color: black
     }
     body, html {
@@ -39,7 +39,7 @@
       </p>
       <hr class="w3-border-grey" style="margin:auto;width:40%">
       <p class="w3-large w3-center">
-        <form action="http://localhost:5000/result" method="POST">
+        <form action="https://saattrupdan.pythonanywhere.com/scholarly/result" method="POST">
           <p align=left>
             <font size=4>Title: </font><br>
             <textarea type="text" rows=1 cols="60" name="title" required autofocus>{{ title }}</textarea>
@@ -50,18 +50,20 @@
           </p>
           <p align=center><input type="submit" value="Submit"/></p>
         </form>
-        
+
         {% if preds %}
           <p align=center>
             The model predicts the following categories:<br>
             <table style="width:100%">
               <tr>
                 <th>Category</th>
+                <th>Description</th>
                 <th>Probability</th>
               </tr>
-              {% for cat, prob in preds %}
+              {% for cat, name, prob in preds %}
                 <tr align=center>
                   <td>{{ cat }}</td>
+                  <td>{{ name }}</td>
                   <td>{{ prob }}</td>
                 </tr>
               {% endfor %}
