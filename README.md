@@ -4,7 +4,7 @@ Category classification of scientific papers. Given a title and an abstract of a
 ## Usage
 Go to [saattrupdan.pythonanywhere.com/scholarly](saattrupdan.pythonanywhere.com/scholarly) to test the model out. Note that you can write LaTeX like $\frac{1}{5}$ as well.
 
-A REST API is also available, by querying [saattrupdan.pythonanywhere.com/scholarly/result](https://saattrupdan.pythonanywhere.com/scholarly/result) with the arguments `title` and `abstract`. You will then receive a JSON response containing a list of lists, with each inner list containing the category id, category description and the probability. The list will only include results with probabilities at least 50%, and the list is sorted descending by probability.
+A REST API is also available at the [saattrupdan.pythonanywhere.com/scholarly/result](https://saattrupdan.pythonanywhere.com/scholarly/result) endpoint, with arguments `title` and `abstract`. You will then receive a JSON response containing a list of lists, with each inner list containing the category id, category description and the probability. The list will only include results with probabilities at least 50%, and the list is sorted descending by probability. [Here](https://saattrupdan.pythonanywhere.com/scholarly/result?title="This is a test title"&abstract="This is a test abstract") is an example of a query.
 
 ## Documentation and data
 This model was trained on all titles and abstracts from all of [arXiv](https://arxiv.org) up to and including 2019, which were all scraped from their API. The scraping script can be found in `arxiv_scraper.py`. All the data can be found at
