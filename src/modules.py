@@ -28,7 +28,7 @@ class Base(nn.Module):
         self.data_dir = params.get('data_dir', '.data')
         self.pbar_width = params.get('pbar_width')
         self.params = params
-        self.ntargets = len(get_cats(data_dir = self.data_dir))
+        self.ntargets = len(get_cats(data_dir = self.data_dir)['id'])
         self.stoi = params['vocab'].stoi
 
         # Embedding layer
@@ -320,10 +320,4 @@ class LayerNormGRU(nn.Module):
         return h_all, h_last
 
 if __name__ == '__main__':
-    model_path = next(get_path('.data').glob('model*.pt'))
-    model, scores = load_model(model_path)
-
-    title = 'Virtual large cardinals'
-    abstract = '''We discuss new properties of virtually measurable cardinals and virtually Woodin cardinals.'''
-
-    print(model.predict(title, abstract))
+    pass

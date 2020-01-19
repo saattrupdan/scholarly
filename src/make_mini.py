@@ -26,7 +26,7 @@ def make_mini(from_fname: str = 'arxiv_data', name: str = 'mini',
     to_path = get_path(data_dir) / f'{from_fname}_{name}_pp.tsv'
 
     df = pd.read_csv(from_path, sep = '\t', chunksize = batch_size)
-    cats = get_cats(data_dir = data_dir)
+    cats = get_cats(data_dir = data_dir)['id']
     nrows = get_nrows(f'{from_fname}_pp.tsv', data_dir = data_dir)
 
     text_path = get_path(data_dir) / 'text.tmp'
