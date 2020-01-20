@@ -1,10 +1,12 @@
 # Scholarly
-Category classification of scientific papers. Given a title and an abstract of a paper, the model will predict a list of categories to which the paper belongs. These categories are the 148 categories used on [arXiv](https://arxiv.org).
+Category classification of scientific papers. 
+
+Given a title and an abstract of a paper, the model will predict a list of categories to which the paper belongs. These categories are the 148 categories used on [arXiv](https://arxiv.org).
 
 ## Usage
-Go to [saattrupdan.pythonanywhere.com/scholarly](saattrupdan.pythonanywhere.com/scholarly) to test the model out. Note that it also supports LaTeX like $\frac{1}{5}$.
+A demonstration of the model can be found at [saattrupdan.pythonanywhere.com/scholarly](https://saattrupdan.pythonanywhere.com/scholarly). Note that you're also free to write LaTeX equations like $\frac{1}{5}$.
 
-A REST API is also available at the [saattrupdan.pythonanywhere.com/scholarly/result](https://saattrupdan.pythonanywhere.com/scholarly/result) endpoint, with arguments `title` and `abstract`. You will then receive a JSON response containing a list of lists, with each inner list containing the category id, category description and the probability. The list will only include results with probabilities at least 50%, and the list is sorted descending by probability. [Here](https://saattrupdan.pythonanywhere.com/scholarly/result?title="test"&abstract="test") is an example of a query.
+A REST API is also available at the same endpoint, with arguments `title` and `abstract`. You will then receive a JSON response containing a list of lists, with each inner list containing the category id, category description and the probability. The list will only include results with probabilities at least 50%, and the list is sorted descending by probability. [Here](https://saattrupdan.pythonanywhere.com/scholarly?title="test"&abstract="test") is an example of a query.
 
 ## Performance
 The score that I was using was the *sample-average F1 score*, which means that for every sample I'm computing the F1 score of the predictions of the sample (note that we are in a multilabel setup), and averaging that over all the samples. If this was a *multiclass* setup (in particular binary classification) then this would simply correspond to accuracy. The difference is that in a multilabel setup the model can be *partially* correct, if it correctly predicts some of the categories.
@@ -12,7 +14,7 @@ The score that I was using was the *sample-average F1 score*, which means that f
 The model ended up achieving a ~93% and ~65% validation sample-average F1 score on the master categories and all the categories, respectively. Training the model requires ~17GB memory and it takes roughly a day to train on an Nvidia P100 GPU. This was trained on the [BlueCrystal Phase 4 compute cluster](https://www.acrc.bris.ac.uk/acrc/phase4.htm) at University of Bristol, UK.
 
 ## Documentation and data
-This model was trained on all titles and abstracts from all of [arXiv](https://arxiv.org) up to and including 2019, which were all scraped from their API. The scraping script can be found in `arxiv_scraper.py`. All the data can be found at
+This model was trained on all titles and abstracts from all of [arXiv](https://arxiv.org) up to and including year 2019, which were all scraped from their API. The scraping script can be found in `arxiv_scraper.py`. All the data can be found at
 
 <p align=center>
   <a href="https://filedn.com/lRBwPhPxgV74tO0rDoe8SpH/scholarly_data">
