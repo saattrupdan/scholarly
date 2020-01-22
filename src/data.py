@@ -82,7 +82,7 @@ def preprocess_data(
     df = df[['text'] + cats]
     df.to_csv(cats_out, sep = '\t', index = False)
 
-def load_data(tsv_fname: str = 'arxiv_data', data_dir: str = '.data', 
+def load_data(tsv_fname: str = 'arxiv_data_pp', data_dir: str = '.data', 
     batch_size: int = 32, split_ratio: float = 0.95,
     random_seed: int = 42, vectors: str = 'fasttext') -> tuple:
     ''' 
@@ -92,7 +92,7 @@ def load_data(tsv_fname: str = 'arxiv_data', data_dir: str = '.data',
     every batch.
 
     INPUT
-        tsv_fname: str = 'arxiv_data'
+        tsv_fname: str = 'arxiv_data_pp'
             The name of the tsv file, without file extension
         data_dir: str = '.data'
             The data directory
