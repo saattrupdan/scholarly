@@ -1,6 +1,8 @@
+from utils import get_cats, get_path, boolean
+
 def load_data(fname: str = 'arxiv_data_pp', data_dir: str = '.data',
     split_ratio: float = 0.98, random_state: int = 42, 
-    use_fasttext: bool = False):
+    use_fasttext: bool = False, **kwargs):
     ''' Load data in one big chunk.
     
     INPUT
@@ -24,7 +26,6 @@ def load_data(fname: str = 'arxiv_data_pp', data_dir: str = '.data',
     '''
     from sklearn.model_selection import train_test_split
     import pandas as pd
-    from utils import get_cats, get_path
 
     # Load data
     df = pd.read_csv(get_path(data_dir) / f'{fname}.tsv', sep = '\t')
@@ -56,57 +57,109 @@ def load_data(fname: str = 'arxiv_data_pp', data_dir: str = '.data',
     return X_train, X_test, Y_train, Y_test
 
 def evaluate(model, X_test, Y_test):
-    ''' Compute the sample-average F1 score of the model on the test set. '''
+    ''' Compute the score of a model.
+    
+    INPUT
+        model
+            A scikit-learn machine learning model
+        X_test
+            The feature vectors for inference, of shape (ntest, vector_dim)
+        Y_test: numpy.ndarray
+            The label vectors for inference, of shape (ntest, ncats)
+
+    OUTPUT
+        The sample-average F1 score of the model on the test set
+    '''
     from sklearn.metrics import f1_score
     Y_hat = model.predict(X_test)
     nrows = Y_test.shape[0]
     score = sum(f1_score(Y_test[i, :], Y_hat[i, :]) for i in range(nrows))
     return round(score / nrows, 4)
 
-def train_naive_bayes(X_train, X_test, Y_train, Y_test, workers: int = -1):
-    ''' Train a multilabel naive bayes classifier. If the frequency vectors
-    are used then the prior will be multinomial, and otherwise Gaussian. '''
-    from sklearn.naive_bayes import MultinomialNB, GaussianNB
-    from sklearn.multioutput import MultiOutputClassifier
-    try:
+def train_model(X_train, X_test, Y_train, Y_test, workers: int = -1,
+    model_type: str = 'naive_bayes', max_iter_factor: int = 10, 
+    random_state: int = 42,  **kwargs):
+    ''' Trains a simple machine learning model on the dataset. 
+    
+    INPUT
+        X_train: numpy.ndarray
+            The feature vectors for training, of shape (ntrain, vector_dim)
+        X_test: numpy.ndarray
+            The feature vectors for inference, of shape (ntest, vector_dim)
+        Y_train: numpy.ndarray
+            The label vectors for training, of shape (ntrain, ncats)
+        Y_test: numpy.ndarray
+            The label vectors for inference, of shape (ntest, ncats)
+        workers: int = -1
+            The number of processes to run in parallel. Defaults to
+            running a process for each CPU core
+        model_type: str = 'naive_bayes'
+            What model to train. Can be chosen among 'naive_bayes', 'svm'
+            and 'logreg'
+        max_iter_factor: int = 10:
+            A factor determining the number of iterations to train for, when
+            training the SVM or logistic regression classifier. It will
+            multiply this factor by the default number of iterations for the
+            classifier, which is 1000 for SVM and 100 for logistic regression
+        random_state: int = 42
+            Random state for reproducibility
+
+    OUTPUT
+        A pair (model, score), with model being the trained model and score
+        the sample-average F1 score on the test set
+    '''
+    
+    if model_type == 'naive_bayes':
+        from sklearn.naive_bayes import MultinomialNB, GaussianNB
+        from sklearn.multioutput import MultiOutputClassifier
+
         # If frequency vectors are used
-        model = MultiOutputClassifier(MultinomialNB(), n_jobs = workers)
-        model = model.fit(X_train, Y_train)
-    except ValueError:
+        if X_train.shape[1] > 100:
+            model = MultiOutputClassifier(MultinomialNB(), n_jobs = workers)
+
         # If fasttext vectors are used
-        model = MultiOutputClassifier(GaussianNB(), n_jobs = workers)
-        model = model.fit(X_train, Y_train)
-    return model, evaluate(model, X_test, Y_test)
+        else:
+            model = MultiOutputClassifier(GaussianNB(), n_jobs = workers)
 
-def train_svm(X_train, X_test, Y_train, Y_test, workers: int = -1):
-    ''' Train a multilabel linear support vector machine. '''
-    from sklearn.svm import LinearSVC
-    from sklearn.multioutput import MultiOutputClassifier
-    binary_model = LinearSVC()
-    model = MultiOutputClassifier(binary_model, n_jobs = workers)
+    elif model_type == 'svm':
+        from sklearn.svm import LinearSVC
+        from sklearn.multioutput import MultiOutputClassifier
+        binary_model = LinearSVC(
+            max_iter = 1000 * max_iter_factor, 
+            random_state = random_state
+        )
+        model = MultiOutputClassifier(binary_model, n_jobs = workers)
+
+    elif model_type == 'logreg':
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.multioutput import MultiOutputClassifier
+        binary_model = LogisticRegression(
+            max_iter = 100 * max_iter_factor, 
+            random_state = random_state
+        )
+        model = MultiOutputClassifier(binary_model, n_jobs = workers)
+
     model = model.fit(X_train, Y_train)
     return model, evaluate(model, X_test, Y_test)
 
-def train_log_reg(X_train, X_test, Y_train, Y_test, workers: int = -1,
-    max_iter: int = 5000):
-    ''' Train a multilabel logistic regression classifier. '''
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.multioutput import MultiOutputClassifier
-    binary_model = LogisticRegression(max_iter = max_iter)
-    model = MultiOutputClassifier(binary_model, n_jobs = workers)
-    model = model.fit(X_train, Y_train)
-    return model, evaluate(model, X_test, Y_test)
 
 if __name__ == '__main__':
+    from argparse import ArgumentParser
 
-    print('### WITHOUT FASTTEXT VECTORS ###')
-    data = load_data(use_fasttext = False)
-    print('Naive Bayes score:', train_naive_bayes(*data)[1])
-    print('Support vector machine score:', train_svm(*data)[1])
-    print('Logistic regression score:', train_log_reg(*data)[1])
+    parser = ArgumentParser()
+    parser.add_argument('--model_type', default = 'naive_bayes')
+    parser.add_argument('--fname', default = 'arxiv_data_pp')
+    parser.add_argument('--use_fasttext', type = boolean, default = False)
+    parser.add_argument('--split_ratio', type = float, default = 0.98)
+    parser.add_argument('--workers', type = int, default = -1)
+    parser.add_argument('--max_iter_factor', type = int, default = 10)
+    parser.add_argument('--data_dir', default = '.data')
+    args = vars(parser.parse_args())
 
-    print('### WITH FASTTEXT VECTORS ###')
-    data = load_data(use_fasttext = True)
-    print('Naive Bayes score:', train_naive_bayes(*data)[1])
-    print('Support vector machine score:', train_svm(*data)[1])
-    print('Logistic regression score:', train_log_reg(*data)[1])
+    vectors = 'FastText' if args['use_fasttext'] else 'frequency'
+    worker_tense = 'workers' if args['workers'] > 1 else 'worker'
+    print(f'Training {args["model_type"]} on {args["fname"]} with '\
+          f'{vectors} vectors and {args["workers"]} {worker_tense}.')
+
+    data = load_data(**args)
+    print(train_model(*data, **args)[1])
