@@ -2,7 +2,7 @@ from utils import get_cats, get_path, boolean
 
 def load_data(fname: str = 'arxiv_data_pp', data_dir: str = '.data',
     split_ratio: float = 0.98, random_state: int = 42, 
-    use_fasttext: bool = False, **kwargs):
+    use_fasttext: bool = False, use_ngrams: bool = False, **kwargs):
     ''' Load data in one big chunk.
     
     INPUT
@@ -14,6 +14,9 @@ def load_data(fname: str = 'arxiv_data_pp', data_dir: str = '.data',
         use_fasttext: bool = False
             Whether to use the homemade FastText vectors. Otherwise bag
             of words vectors will be used
+        use_ngrams: bool = False
+            Whether to use word ngrams in the word vectors. Increases loading
+            time.
         random_state: int = 42
             Random state for reproducibility
         data_dir: str = '.data'
@@ -32,6 +35,14 @@ def load_data(fname: str = 'arxiv_data_pp', data_dir: str = '.data',
     cats = get_cats(data_dir = data_dir)['id']
     X, Y = df['text'], df.loc[:, cats].values
     del df
+
+    # Convert into ngrams
+    if use_ngrams:
+        from gensim.models.phrases import Phrases, Phraser
+        phrases = Phrases((x.split() for x in X))
+        phraser = Phraser(phrases)
+        X = X.apply(lambda x: ' '.join(phraser[x.split()]))
+        del phrases, phraser
 
     # Create train- and test sets
     X_train, X_test, Y_train, Y_test = train_test_split(X, Y, 
@@ -126,7 +137,8 @@ def train_model(X_train, X_test, Y_train, Y_test, workers: int = -1,
         from sklearn.multioutput import MultiOutputClassifier
         binary_model = LinearSVC(
             max_iter = 1000 * max_iter_factor, 
-            random_state = random_state
+            random_state = random_state,
+            verbose = 1
         )
         model = MultiOutputClassifier(binary_model, n_jobs = workers)
 
@@ -135,7 +147,8 @@ def train_model(X_train, X_test, Y_train, Y_test, workers: int = -1,
         from sklearn.multioutput import MultiOutputClassifier
         binary_model = LogisticRegression(
             max_iter = 100 * max_iter_factor, 
-            random_state = random_state
+            random_state = random_state,
+            verbose = 1
         )
         model = MultiOutputClassifier(binary_model, n_jobs = workers)
 
@@ -145,6 +158,7 @@ def train_model(X_train, X_test, Y_train, Y_test, workers: int = -1,
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
+    from multiprocessing import cpu_count
 
     parser = ArgumentParser()
     parser.add_argument('--model_type', default = 'naive_bayes')
@@ -153,13 +167,15 @@ if __name__ == '__main__':
     parser.add_argument('--split_ratio', type = float, default = 0.98)
     parser.add_argument('--workers', type = int, default = -1)
     parser.add_argument('--max_iter_factor', type = int, default = 10)
+    parser.add_argument('--use_ngrams', type = boolean, default = False)
     parser.add_argument('--data_dir', default = '.data')
     args = vars(parser.parse_args())
 
+    workers = cpu_count() if args['workers'] == -1 else args['workers']
     vectors = 'FastText' if args['use_fasttext'] else 'frequency'
-    worker_tense = 'workers' if args['workers'] > 1 else 'worker'
+    worker_tense = 'workers' if workers > 1 else 'worker'
     print(f'Training {args["model_type"]} on {args["fname"]} with '\
-          f'{vectors} vectors and {args["workers"]} {worker_tense}.')
+          f'{vectors} vectors and {workers} {worker_tense}.')
 
     data = load_data(**args)
     print(train_model(*data, **args)[1])
