@@ -57,6 +57,7 @@ def load_data(fname: str = 'arxiv_data_pp', data_dir: str = '.data',
             for doc in X_train])
         X_test = np.stack([ft.get_sentence_vector(doc.strip()) 
             for doc in X_test])
+        del ft
 
     else:
         from sklearn.feature_extraction.text import CountVectorizer
@@ -64,6 +65,7 @@ def load_data(fname: str = 'arxiv_data_pp', data_dir: str = '.data',
         vectoriser = CountVectorizer().fit(train_vocab)
         X_train = vectoriser.transform(X_train)
         X_test = vectoriser.transform(X_test)
+        del vectoriser, train_vocab
 
     return X_train, X_test, Y_train, Y_test
 
@@ -88,8 +90,7 @@ def evaluate(model, X_test, Y_test):
     return round(score / nrows, 4)
 
 def train_model(X_train, X_test, Y_train, Y_test, workers: int = -1,
-    model_type: str = 'naive_bayes', max_iter_factor: int = 10, 
-    random_state: int = 42,  **kwargs):
+    model_type: str = 'naive_bayes', random_state: int = 42,  **kwargs):
     ''' Trains a simple machine learning model on the dataset. 
     
     INPUT
@@ -105,13 +106,8 @@ def train_model(X_train, X_test, Y_train, Y_test, workers: int = -1,
             The number of processes to run in parallel. Defaults to
             running a process for each CPU core
         model_type: str = 'naive_bayes'
-            What model to train. Can be chosen among 'naive_bayes', 'svm'
+            What model to train. Can be chosen among 'naive_bayes', 'forest'
             and 'logreg'
-        max_iter_factor: int = 10:
-            A factor determining the number of iterations to train for, when
-            training the SVM or logistic regression classifier. It will
-            multiply this factor by the default number of iterations for the
-            classifier, which is 1000 for SVM and 100 for logistic regression
         random_state: int = 42
             Random state for reproducibility
 
@@ -132,25 +128,26 @@ def train_model(X_train, X_test, Y_train, Y_test, workers: int = -1,
         else:
             model = MultiOutputClassifier(GaussianNB(), n_jobs = workers)
 
-    elif model_type == 'svm':
-        from sklearn.svm import LinearSVC
-        from sklearn.multioutput import MultiOutputClassifier
-        binary_model = LinearSVC(
-            max_iter = 1000 * max_iter_factor, 
+    elif model_type == 'forest':
+        from sklearn.ensemble import RandomForestClassifier
+        model = RandomForestClassifier(
             random_state = random_state,
-            verbose = 1
+            verbose = 1,
+            n_jobs = workers,
+            n_estimators = 100
         )
-        model = MultiOutputClassifier(binary_model, n_jobs = workers)
 
     elif model_type == 'logreg':
-        from sklearn.linear_model import LogisticRegression
-        from sklearn.multioutput import MultiOutputClassifier
-        binary_model = LogisticRegression(
-            max_iter = 100 * max_iter_factor, 
+        from sklearn.neural_network import MLPClassifier
+        model = MLPClassifier(
+            hidden_layer_sizes = (),
+            solver = 'sgd',
             random_state = random_state,
-            verbose = 1
+            max_iter = 10,
+            momentum = 0,
+            verbose = 1,
+            early_stopping = True
         )
-        model = MultiOutputClassifier(binary_model, n_jobs = workers)
 
     model = model.fit(X_train, Y_train)
     return model, evaluate(model, X_test, Y_test)
@@ -166,7 +163,6 @@ if __name__ == '__main__':
     parser.add_argument('--use_fasttext', type = boolean, default = False)
     parser.add_argument('--split_ratio', type = float, default = 0.98)
     parser.add_argument('--workers', type = int, default = -1)
-    parser.add_argument('--max_iter_factor', type = int, default = 10)
     parser.add_argument('--use_ngrams', type = boolean, default = False)
     parser.add_argument('--data_dir', default = '.data')
     args = vars(parser.parse_args())
@@ -178,4 +174,4 @@ if __name__ == '__main__':
           f'{vectors} vectors and {workers} {worker_tense}.')
 
     data = load_data(**args)
-    print(train_model(*data, **args)[1])
+    print('Validation sample-average F1 score:', train_model(*data, **args)[1])
