@@ -8,7 +8,7 @@ def end2end(mcat_ratio: float, epochs: int, dim: int,
     ''' Loads the data, preprocesses it if needed, builds the SHARNN model,
         trains it and evaluates it. '''
     from data import load_data
-    from modules import SHARNN
+    from modules import SHARNN, LogReg
 
     pp_path = get_path(data_dir) / f'{fname}_pp.tsv'
     if not pp_path.is_file():
@@ -36,7 +36,7 @@ def end2end(mcat_ratio: float, epochs: int, dim: int,
         data_dir = data_dir
     )
 
-    model = SHARNN(dim = dim, nlayers = nlayers, data_dir = data_dir, 
+    model = LogReg(dim = dim, nlayers = nlayers, data_dir = data_dir, 
         pbar_width = pbar_width, vocab = vocab, boom_dim = boom_dim,
         dropout = dropout)
     if gpu: model.cuda()

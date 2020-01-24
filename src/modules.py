@@ -63,6 +63,17 @@ class Base(nn.Module):
         from training import train_model
         return train_model(self, *args, **kwargs)
 
+class LogReg(Base):
+    def __init__(self, **params):
+        super().__init__(**params)
+        self.fc = nn.Linear(self.emb_dim, self.ntargets)
+
+    def forward(self, x):
+        x = self.embed(x)
+        x = torch.mean(x, dim = 0)
+        x = self.fc(x)
+        return x
+
 class BoomBlock(nn.Module):
     ''' A block consisting of two dense layers, one embedding into a high
         dimensional space, and the other projecting back into the dimension
